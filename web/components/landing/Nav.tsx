@@ -8,7 +8,7 @@ const links = [
 
 export function Nav() {
   return (
-    <header className="sticky top-0 z-50 border-b border-hairline-soft bg-canvas/95 backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-hairline-soft bg-canvas/70 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between px-6 sm:px-8">
         <Link
           href="#top"
@@ -22,7 +22,7 @@ export function Nav() {
             <a
               key={link.href}
               href={link.href}
-              className="text-sm font-medium text-steel transition-colors hover:text-ink"
+              className="link-underline text-sm font-medium text-steel transition-colors hover:text-ink"
             >
               {link.label}
             </a>
@@ -31,7 +31,7 @@ export function Nav() {
 
         <Link
           href="/problems"
-          className="rounded-md bg-ink px-5 py-2.5 text-sm font-medium text-on-dark"
+          className="btn-ember rounded-md px-5 py-2.5 text-sm font-semibold"
         >
           Try it
         </Link>

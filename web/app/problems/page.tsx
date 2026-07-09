@@ -63,7 +63,7 @@ export default function ProblemsPage() {
         <>
           {state.usedMock && (
             <p className="mb-4 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
-              Backend unreachable at the configured API URL — showing offline sample problems.
+              Backend unreachable at the configured API URL. Showing offline sample problems.
             </p>
           )}
           <ul className="space-y-3">

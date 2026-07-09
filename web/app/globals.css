@@ -1,62 +1,76 @@
 @import "tailwindcss";
 
 /*
-  Design tokens sourced verbatim from /DESIGN-mistral.ai.md.
-  PP Editorial Old (commercial, unlicensed) is substituted with Fraunces
-  per PLAN.md's "Landing Page" section. The design doc documents no
-  dark-mode palette ("Known Gaps"), so this page is intentionally light-only.
+  Volna landing: deliberate premium dark theme.
+
+  Palette philosophy (grounded in Linear / Vercel / Raycast marketing pages):
+  - Off-black base, never pure #000, to avoid halation.
+  - Off-white text (#f5f5f7) for warmth over extended reading.
+  - One dominant accent: the "ember" gradient, carried over from Volna's
+    original sunset brand (orange to amber to gold) so the accent stays tied
+    to the product instead of the generic purple/blue AI gradient.
+  - A single cool counter-accent, "signal" (teal to cyan), used only inside
+    the graph section to represent structured data moving through the state
+    machine. It reuses the teal that already appears in the code showcase.
 */
 @theme inline {
-  /* Brand & accent */
-  --color-primary: #fa520f;
-  --color-primary-deep: #cc3a05;
+  /* Brand accent: ember (sunset lineage) */
+  --color-primary: #ff6a2b;
+  --color-primary-deep: #fa520f;
   --color-on-primary: #ffffff;
+  --color-ember-1: #fa520f;
+  --color-ember-2: #ff7a1a;
+  --color-ember-3: #ffb03e;
+  --color-ember-glow: #ff8a2a;
   --color-sunshine-300: #ffd06a;
   --color-sunshine-500: #ffb83e;
   --color-sunshine-700: #ffa110;
   --color-sunshine-800: #ff8105;
   --color-sunshine-900: #ff8a00;
   --color-yellow-saturated: #ffd900;
-  --color-block-5: #ffe295;
-  --color-block-6: #ffd900;
-  --color-block-7: #ff8105;
 
-  /* Cream / neutral warm */
-  --color-cream: #fff8e0;
-  --color-cream-light: #fffaeb;
-  --color-cream-deeper: #fff0c2;
-  --color-beige-deep: #e6d5a8;
+  /* Signal accent: cool counter-tone for the graph section only */
+  --color-signal-1: #2fd6c3;
+  --color-signal-2: #4bb8ff;
+  --color-signal-soft: #7ee0c3;
 
-  /* Surface */
-  --color-canvas: #ffffff;
-  --color-surface: #fafafa;
-  --color-surface-cream: #fff8e0;
-  --color-surface-cream-soft: #fffaeb;
-  --color-surface-code: #1c1c1e;
-  --color-hairline: #e5e5e5;
-  --color-hairline-soft: #ededed;
-  --color-hairline-strong: #c7c7c7;
+  /* Surfaces: three-tier elevation on off-black */
+  --color-canvas: #0a0a0c;
+  --color-surface: #0d0d11;
+  --color-surface-2: #131317;
+  --color-surface-3: #17171d;
+  --color-surface-code: #0c0c10;
+  --color-cream: #131317;
+  --color-cream-light: #17171d;
+  --color-cream-deeper: #1b1b22;
+  --color-beige-deep: rgba(255, 255, 255, 0.1);
+  --color-footer-cream: #08080a;
+  --color-surface-cream: #0d0d11;
 
-  /* Text */
-  --color-ink: #1f1f1f;
-  --color-ink-tint: #3d3d3d;
-  --color-charcoal: #2c2c2c;
-  --color-slate: #4a4a4a;
-  --color-steel: #6a6a6a;
-  --color-stone: #8a8a8a;
-  --color-muted: #a8a8a8;
+  /* Hairlines: light-on-dark, translucent so they read against any surface */
+  --color-hairline: rgba(255, 255, 255, 0.08);
+  --color-hairline-soft: rgba(255, 255, 255, 0.06);
+  --color-hairline-strong: rgba(255, 255, 255, 0.16);
+
+  /* Text: off-white scale down to muted */
+  --color-ink: #f5f5f7;
+  --color-ink-tint: #d7d7de;
+  --color-charcoal: #ededf0;
+  --color-slate: #b2b2be;
+  --color-steel: #8b8b98;
+  --color-stone: #6d6d78;
+  --color-muted: #55555f;
   --color-on-dark: #ffffff;
-  --color-on-dark-muted: #a8a8a8;
-  --color-on-cream: #1f1f1f;
-  --color-footer-cream: #fff8e0;
-  --color-link: #fa520f;
+  --color-on-dark-muted: #9a9aa6;
+  --color-on-cream: #f5f5f7;
+  --color-link: #ff7a1a;
 
   /* Fonts (see layout.tsx for next/font wiring) */
   --font-display: var(--font-fraunces);
   --font-sans: var(--font-inter);
   --font-mono: var(--font-jetbrains-mono);
 
-  /* Radius scale — sober/editorial, no pill buttons except badges */
+  /* Radius scale */
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
@@ -64,11 +78,33 @@
   --radius-xl: 16px;
   --radius-2xl: 20px;
   --radius-full: 9999px;
+
+  /* Named keyframes for Tailwind utilities where useful */
+  --animate-shimmer: shimmer 6s linear infinite;
 }
 
 :root {
   --background: var(--color-canvas);
   --foreground: var(--color-ink);
+
+  /* Deliberate gradient definitions, referenced across components */
+  --gradient-ember: linear-gradient(
+    135deg,
+    #fa520f 0%,
+    #ff7a1a 45%,
+    #ffb03e 100%
+  );
+  --gradient-ember-soft: linear-gradient(
+    135deg,
+    rgba(250, 82, 15, 0.9) 0%,
+    rgba(255, 138, 42, 0.9) 100%
+  );
+  --gradient-signal: linear-gradient(135deg, #2fd6c3 0%, #4bb8ff 100%);
+  color-scheme: dark;
+}
+
+html {
+  background: var(--color-canvas);
 }
 
 body {
@@ -79,4 +115,239 @@ body {
 /* Fraunces display type for hero/section headlines. */
 .font-display {
   font-family: var(--font-display), Georgia, "Times New Roman", serif;
+}
+
+/* ------------------------------------------------------------------ */
+/* Reusable dark-theme texture + accent utilities                      */
+/* ------------------------------------------------------------------ */
+
+/* Faint engineering grid, masked so it reads as texture, not noise. */
+.bg-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+/* Dot-matrix variant. */
+.bg-dots {
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.07) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+}
+
+/* Radial fade so background textures dissolve toward the edges. */
+.mask-fade {
+  -webkit-mask-image: radial-gradient(
+    ellipse 80% 60% at 50% 40%,
+    #000 0%,
+    transparent 78%
+  );
+  mask-image: radial-gradient(
+    ellipse 80% 60% at 50% 40%,
+    #000 0%,
+    transparent 78%
+  );
+}
+
+/* Ember gradient text. */
+.text-gradient-ember {
+  background: linear-gradient(120deg, #ffcf7a 0%, #ff8a2a 42%, #fa520f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Animated shimmering gradient text (respects reduced motion below). */
+.text-gradient-shimmer {
+  background: linear-gradient(
+    100deg,
+    #f5f5f7 0%,
+    #ffb03e 30%,
+    #ff7a1a 45%,
+    #f5f5f7 60%,
+    #f5f5f7 100%
+  );
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 7s linear infinite;
+}
+
+/* Primary CTA: ember gradient with a layered glow, not a flat SaaS button. */
+.btn-ember {
+  position: relative;
+  background: linear-gradient(135deg, #fa520f 0%, #ff8a2a 100%);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 0 0 1px rgba(255, 138, 42, 0.35),
+    0 10px 34px -10px rgba(250, 82, 15, 0.7);
+  transition:
+    box-shadow 200ms ease,
+    transform 200ms ease;
+}
+.btn-ember:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 0 0 1px rgba(255, 176, 62, 0.6),
+    0 14px 44px -8px rgba(250, 82, 15, 0.85);
+  transform: translateY(-1px);
+}
+
+/* Ghost button for secondary actions (one accent per viewport rule). */
+.btn-ghost {
+  border: 1px solid var(--color-hairline-strong);
+  color: var(--color-ink);
+  background: rgba(255, 255, 255, 0.02);
+  transition:
+    border-color 200ms ease,
+    background 200ms ease,
+    color 200ms ease;
+}
+.btn-ghost:hover {
+  border-color: rgba(255, 138, 42, 0.5);
+  background: rgba(255, 138, 42, 0.06);
+}
+
+/* Gradient hairline border rendered via mask, for premium card edges. */
+.glow-border {
+  position: relative;
+}
+.glow-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 176, 62, 0.45),
+    rgba(255, 255, 255, 0.06) 40%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.7;
+  transition: opacity 220ms ease;
+}
+.glow-border:hover::before {
+  opacity: 1;
+}
+
+/* Cursor-reactive spotlight: components set --mx / --my on pointer move. */
+.spotlight::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    360px circle at var(--mx, 50%) var(--my, 0%),
+    rgba(255, 138, 42, 0.14),
+    transparent 55%
+  );
+  opacity: 0;
+  transition: opacity 260ms ease;
+  pointer-events: none;
+}
+.spotlight:hover::after {
+  opacity: 1;
+}
+
+/* Animated underline for nav / inline links. */
+.link-underline {
+  position: relative;
+}
+.link-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -3px;
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(90deg, #ff7a1a, #ffb03e);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 220ms ease;
+}
+.link-underline:hover::after {
+  transform: scaleX(1);
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -220% center;
+  }
+}
+
+@keyframes aurora-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate3d(3%, -4%, 0) scale(1.12);
+    opacity: 0.75;
+  }
+}
+
+.animate-aurora {
+  animation: aurora-drift 16s ease-in-out infinite;
+}
+
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -28;
+  }
+}
+
+@keyframes grid-pan {
+  to {
+    background-position: 56px 56px;
+  }
+}
+
+.animate-grid-pan {
+  animation: grid-pan 22s linear infinite;
+}
+
+/* Flowing dashes along a graph edge (state-machine data flow). */
+.edge-flow {
+  animation: flow-dash 1.1s linear infinite;
+}
+
+@keyframes node-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.animate-node-pulse {
+  animation: node-pulse 3.2s ease-in-out infinite;
+}
+
+/* Honor reduced-motion for every decorative loop defined here. */
+@media (prefers-reduced-motion: reduce) {
+  .text-gradient-shimmer,
+  .animate-aurora,
+  .animate-grid-pan,
+  .edge-flow,
+  .animate-node-pulse {
+    animation: none !important;
+  }
+  .text-gradient-shimmer {
+    background-position: 0 center;
+  }
 }

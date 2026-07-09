@@ -1,62 +1,179 @@
+"use client";
+
 import Link from "next/link";
+import { motion, useReducedMotion } from "framer-motion";
+import { GridBackground } from "./GridBackground";
+
+const headline = [
+  "Your",
+  "DSA",
+  "tutor",
+  "that",
+  "never",
+  "skips",
+  "to",
+  "the",
+  "answer.",
+];
+
+// The word that carries the ember gradient accent in the headline.
+const accentWords = new Set(["never", "skips"]);
 
 export function Hero() {
+  const shouldReduceMotion = useReducedMotion();
+
   return (
-    <section
-      id="top"
-      className="relative overflow-hidden"
-      style={{
-        background:
-          "linear-gradient(135deg, var(--color-sunshine-700) 0%, var(--color-sunshine-900) 60%, var(--color-primary) 100%)",
-      }}
-    >
-      {/* Atmospheric sunset glow standing in for hero photography, per the
-          design doc's allowance for "atmospheric gradient sky" as a substitute
-          for mountain photography. */}
+    <section id="top" className="relative overflow-hidden bg-canvas">
+      <GridBackground variant="grid" aurora animated />
+
+      {/* Top hairline of warm light, echoing the sunset brand at the seam. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -right-40 top-1/2 h-[520px] w-[520px] -translate-y-1/2 rounded-full opacity-70 blur-3xl"
+        className="pointer-events-none absolute inset-x-0 top-0 h-px"
         style={{
           background:
-            "radial-gradient(circle, var(--color-yellow-saturated) 0%, transparent 70%)",
+            "linear-gradient(90deg, transparent, rgba(255,138,42,0.6), transparent)",
         }}
       />
 
-      <div className="relative mx-auto grid max-w-[1280px] gap-12 px-6 py-24 sm:px-8 sm:py-32 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:py-[120px]">
+      <div className="relative mx-auto grid max-w-[1280px] gap-14 px-6 py-24 sm:px-8 sm:py-32 lg:grid-cols-[1.08fr_0.92fr] lg:items-center lg:py-[128px]">
         <div>
-          <span className="inline-flex rounded-full bg-ink px-3 py-1 text-xs font-semibold uppercase tracking-wider text-on-dark">
+          <motion.span
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="inline-flex items-center gap-2 rounded-full border border-hairline-strong bg-white/[0.03] px-3 py-1 text-xs font-semibold uppercase tracking-wider text-ink-tint backdrop-blur"
+          >
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+            </span>
             Voice AI DSA tutor
-          </span>
+          </motion.span>
 
-          <h1 className="font-display mt-6 text-[40px] leading-[1.05] tracking-[-0.5px] text-ink sm:text-[52px] lg:text-[64px] xl:text-[84px] xl:tracking-[-1.5px]">
-            Your DSA tutor that never skips to the answer.
+          <h1 className="font-display mt-6 text-[40px] leading-[1.04] tracking-[-0.5px] text-ink sm:text-[52px] lg:text-[64px] xl:text-[80px] xl:tracking-[-1.5px]">
+            {headline.map((word, i) => (
+              <motion.span
+                key={`${word}-${i}`}
+                initial={
+                  shouldReduceMotion
+                    ? false
+                    : { opacity: 0, y: "0.4em", filter: "blur(6px)" }
+                }
+                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                transition={{
+                  duration: 0.5,
+                  delay: shouldReduceMotion ? 0 : 0.15 + i * 0.06,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                className={`inline-block ${
+                  accentWords.has(word) ? "text-gradient-ember" : ""
+                }`}
+              >
+                {word}
+                {i < headline.length - 1 ? " " : ""}
+              </motion.span>
+            ))}
           </h1>
 
-          <p className="mt-6 max-w-xl text-lg leading-[1.5] text-ink-tint">
-            Explain the problem back. Defend your approach out loud. Watch
-            real test cases catch what you missed. Then do it again, better.
-          </p>
+          <motion.p
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: shouldReduceMotion ? 0 : 0.75 }}
+            className="mt-6 max-w-xl text-lg leading-[1.55] text-slate"
+          >
+            Explain the problem back. Defend your approach out loud. Watch real
+            test cases catch what you missed. Then do it again, better.
+          </motion.p>
 
-          <div className="mt-10 flex flex-wrap items-center gap-4">
+          <motion.div
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: shouldReduceMotion ? 0 : 0.88 }}
+            className="mt-10 flex flex-wrap items-center gap-4"
+          >
             <Link
               href="/problems"
-              className="rounded-md bg-ink px-5 py-2.5 text-sm font-medium text-on-dark"
+              className="btn-ember rounded-md px-5 py-2.5 text-sm font-semibold"
             >
               Try it
             </Link>
             <a
               href="#how-it-thinks"
-              className="rounded-md border border-hairline-strong px-5 py-2.5 text-sm font-medium text-ink"
+              className="btn-ghost rounded-md px-5 py-2.5 text-sm font-medium"
             >
               See how it thinks
             </a>
-          </div>
+          </motion.div>
         </div>
 
-        <div className="hidden lg:block" aria-hidden>
-          <div className="ml-auto h-[360px] w-full max-w-[420px] rounded-lg border border-white/20 bg-white/10 backdrop-blur-sm" />
-        </div>
+        <HeroPanel />
       </div>
     </section>
+  );
+}
+
+/**
+ * Right-side hero visual: a glass panel showing the tutoring loop as a live
+ * "signal" moving between phases. Replaces the previous empty placeholder box.
+ */
+function HeroPanel() {
+  const shouldReduceMotion = useReducedMotion();
+  const phases = ["Explain", "Approach", "Code", "Execute", "Iterate"];
+
+  return (
+    <motion.div
+      aria-hidden
+      initial={shouldReduceMotion ? false : { opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, delay: shouldReduceMotion ? 0 : 0.5 }}
+      className="hidden lg:block"
+    >
+      <div className="glow-border relative ml-auto w-full max-w-[440px] overflow-hidden rounded-xl border border-hairline-soft bg-surface-2/80 p-6 backdrop-blur">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
+          <span className="ml-2 font-mono text-[11px] text-steel">
+            session.state
+          </span>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-2.5">
+          {phases.map((phase, i) => (
+            <div
+              key={phase}
+              className="relative flex items-center gap-3 rounded-lg border border-hairline-soft bg-white/[0.02] px-3.5 py-2.5"
+            >
+              <span className="font-mono text-[11px] text-stone">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span className="font-mono text-sm text-ink-tint">{phase}</span>
+              {!shouldReduceMotion ? (
+                <motion.span
+                  className="absolute right-3 h-1.5 w-1.5 rounded-full bg-signal-1"
+                  style={{ boxShadow: "0 0 10px 2px rgba(47,214,195,0.8)" }}
+                  animate={{ opacity: [0.15, 1, 0.15] }}
+                  transition={{
+                    duration: 2.4,
+                    repeat: Infinity,
+                    delay: i * 0.48,
+                    ease: "easeInOut",
+                  }}
+                />
+              ) : null}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 rounded-lg border border-hairline-soft bg-surface-code px-4 py-3 font-mono text-[12px] leading-relaxed">
+          <span className="text-on-dark-muted"># conditional edge</span>
+          <br />
+          <span className="text-[#4bb8ff]">if</span>{" "}
+          <span className="text-ink-tint">grade.passed:</span>{" "}
+          <span className="text-[#2fd6c3]">advance()</span>
+        </div>
+      </div>
+    </motion.div>
   );
 }

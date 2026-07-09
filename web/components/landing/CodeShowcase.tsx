@@ -21,9 +21,9 @@ const codeLines: { text: string; tone?: "comment" | "keyword" | "string" | "plai
 
 const toneClass: Record<string, string> = {
   comment: "text-on-dark-muted",
-  keyword: "text-[#ffb83e]",
+  keyword: "text-[#ff9d4d]",
   string: "text-[#7ee0c3]",
-  plain: "text-on-dark",
+  plain: "text-ink-tint",
 };
 
 export function CodeShowcase() {
@@ -31,7 +31,7 @@ export function CodeShowcase() {
     <section className="mx-auto max-w-[1280px] px-6 py-16 sm:px-8 sm:py-24">
       <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
         <div>
-          <span className="text-[11px] font-semibold uppercase tracking-[1px] text-primary">
+          <span className="font-mono text-[11px] font-semibold uppercase tracking-[1px] text-primary">
             Authored, not improvised
           </span>
           <h2 className="font-display mt-3 text-[32px] leading-[1.15] tracking-[-0.5px] text-ink sm:text-[40px]">
@@ -46,8 +46,8 @@ export function CodeShowcase() {
         </div>
 
         <Reveal>
-          <div className="overflow-hidden rounded-lg border border-black/20 shadow-[0_12px_24px_-4px_rgba(0,0,0,0.25)]">
-            <div className="flex items-center gap-2 bg-surface-code px-4 py-3">
+          <div className="glow-border overflow-hidden rounded-xl border border-hairline-soft shadow-[0_24px_60px_-20px_rgba(0,0,0,0.8)]">
+            <div className="flex items-center gap-2 border-b border-hairline-soft bg-surface-2 px-4 py-3">
               <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
               <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
               <span className="h-3 w-3 rounded-full bg-[#28c840]" />
@@ -59,7 +59,7 @@ export function CodeShowcase() {
               <code>
                 {codeLines.map((line, i) => (
                   <div key={i} className={toneClass[line.tone ?? "plain"]}>
-                    {line.text || " "}
+                    {line.text || " "}
                   </div>
                 ))}
               </code>

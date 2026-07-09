@@ -1,4 +1,5 @@
 import { Reveal } from "./Reveal";
+import { SpotlightCard } from "./SpotlightCard";
 
 const items = [
   {
@@ -18,7 +19,7 @@ const items = [
 export function ProblemsWeHit() {
   return (
     <section id="problems-we-hit" className="mx-auto max-w-[1280px] px-6 py-16 sm:px-8 sm:py-24">
-      <span className="text-[11px] font-semibold uppercase tracking-[1px] text-primary">
+      <span className="font-mono text-[11px] font-semibold uppercase tracking-[1px] text-primary">
         Problems we hit building this
       </span>
       <h2 className="font-display mt-3 max-w-2xl text-[32px] leading-[1.15] tracking-[-0.5px] text-ink sm:text-[40px]">
@@ -27,15 +28,15 @@ export function ProblemsWeHit() {
 
       <div className="mt-10 grid gap-6 md:grid-cols-3">
         {items.map((item, i) => (
-          <Reveal key={item.title} delay={i * 0.08}>
-            <div className="h-full rounded-lg border border-beige-deep bg-cream p-8 text-ink">
+          <Reveal key={item.title} delay={i * 0.08} className="h-full">
+            <SpotlightCard className="h-full rounded-xl border border-hairline-soft bg-surface-2 p-8 text-ink">
               <h3 className="text-[18px] font-medium leading-[1.4]">
                 {item.title}
               </h3>
-              <p className="mt-3 text-[15px] leading-[1.55] text-ink-tint">
+              <p className="mt-3 text-[15px] leading-[1.6] text-slate">
                 {item.body}
               </p>
-            </div>
+            </SpotlightCard>
           </Reveal>
         ))}
       </div>

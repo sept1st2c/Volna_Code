@@ -1,4 +1,5 @@
 import { Reveal } from "./Reveal";
+import { SpotlightCard } from "./SpotlightCard";
 
 const features = [
   {
@@ -20,18 +21,21 @@ export function FeatureRow() {
     <section className="mx-auto max-w-[1280px] px-6 py-16 sm:px-8 sm:py-24">
       <div className="grid gap-6 md:grid-cols-3">
         {features.map((feature, i) => (
-          <Reveal key={feature.title} delay={i * 0.08}>
-            <div className="h-full rounded-lg border border-hairline-soft bg-canvas p-8">
-              <span className="flex h-9 w-9 items-center justify-center rounded-md bg-cream text-sm font-semibold text-primary">
+          <Reveal key={feature.title} delay={i * 0.08} className="h-full">
+            <SpotlightCard className="h-full rounded-xl border border-hairline-soft bg-surface-2 p-8">
+              <span
+                className="flex h-9 w-9 items-center justify-center rounded-md font-mono text-sm font-semibold text-on-primary"
+                style={{ background: "var(--gradient-ember)" }}
+              >
                 {i + 1}
               </span>
               <h3 className="mt-5 text-[22px] font-medium leading-[1.3] text-ink">
                 {feature.title}
               </h3>
-              <p className="mt-3 text-[15px] leading-[1.55] text-slate">
+              <p className="mt-3 text-[15px] leading-[1.6] text-slate">
                 {feature.body}
               </p>
-            </div>
+            </SpotlightCard>
           </Reveal>
         ))}
       </div>
