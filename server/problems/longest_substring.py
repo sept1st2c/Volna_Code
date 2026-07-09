@@ -57,6 +57,19 @@ PROBLEM = Problem(
             ),
         ),
         TestCase(id="single_char", args={"s": "a"}, expected=1, is_edge_case=True, edge_case_tag="minimal_size"),
+        TestCase(
+            id="space_and_case_sensitivity",
+            args={"s": "a A a"},
+            expected=3,
+            is_edge_case=True,
+            edge_case_tag="space_and_case_sensitive_chars",
+            explanation_if_failed=(
+                "The constraint allows spaces in `s`, and 'a' and 'A' are different "
+                "characters — a solution that strips/normalizes whitespace, or that "
+                "lowercases characters before comparing them, will miscount this. The "
+                "longest run is 'A a' (indices 2-4), length 3."
+            ),
+        ),
     ],
     brute_force=BruteForce(
         description="Check every possible substring (O(n^2) of them), and for each one scan it to verify all characters are unique (O(n)).",
@@ -81,6 +94,7 @@ PROBLEM = Problem(
         Loophole(id="empty", description="Empty string input should return 0.", related_test_case_id="empty_string"),
         Loophole(id="all_repeat", description="A string of all-identical characters should return 1, not 0.", related_test_case_id="all_same"),
         Loophole(id="stale_index", description="A character seen before but now outside the current window must not incorrectly shrink it.", related_test_case_id="left_pointer_jump_back"),
+        Loophole(id="space_and_case", description="Spaces are valid characters in the input, and letter casing matters ('a' != 'A') — don't strip whitespace or normalize case.", related_test_case_id="space_and_case_sensitivity"),
     ],
     comprehension_rubric=ComprehensionRubric(
         key_points=[

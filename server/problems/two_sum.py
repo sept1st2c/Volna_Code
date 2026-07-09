@@ -42,7 +42,15 @@ PROBLEM = Problem(
         "def _compare(result, expected, args):\n"
         "    if not isinstance(result, list) or len(result) != 2:\n"
         "        return False\n"
-        "    return sorted(result) == sorted(expected)\n"
+        "    i, j = result\n"
+        "    if not isinstance(i, int) or not isinstance(j, int) or isinstance(i, bool) or isinstance(j, bool):\n"
+        "        return False\n"
+        "    if i == j:\n"
+        "        return False\n"
+        "    nums = args['nums']\n"
+        "    if not (0 <= i < len(nums) and 0 <= j < len(nums)):\n"
+        "        return False\n"
+        "    return nums[i] + nums[j] == args['target']\n"
     ),
     test_cases=[
         TestCase(id="basic", args={"nums": [2, 7, 11, 15], "target": 9}, expected=[0, 1]),
