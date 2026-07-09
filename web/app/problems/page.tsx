@@ -33,7 +33,16 @@ export default function ProblemsPage() {
   }, []);
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-3xl bg-canvas px-6 py-12 text-ink">
+    <main className="min-h-screen bg-canvas text-ink">
+      <header className="border-b border-hairline bg-surface px-6 py-3">
+        <div className="mx-auto max-w-3xl">
+          <Link href="/" className="font-display text-base tracking-tight text-ink">
+            Volna
+          </Link>
+        </div>
+      </header>
+
+      <div className="mx-auto w-full max-w-3xl px-6 py-12">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-ink">Pick a problem</h1>
         <p className="mt-1 text-sm text-steel">
@@ -85,6 +94,7 @@ export default function ProblemsPage() {
           </ul>
         </>
       )}
+      </div>
     </main>
   );
 }

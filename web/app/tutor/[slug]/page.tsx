@@ -147,6 +147,10 @@ export default function TutorSessionPage({ params }: TutorSessionPageProps) {
   return (
     <main className="flex min-h-screen flex-col bg-canvas text-ink">
       <header className="flex items-center gap-3 border-b border-hairline bg-surface px-6 py-3">
+        <Link href="/" className="font-display text-base tracking-tight text-ink">
+          Volna
+        </Link>
+        <span className="text-stone">/</span>
         <Link
           href="/problems"
           className="text-sm text-steel hover:text-ink"

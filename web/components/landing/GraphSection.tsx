@@ -18,7 +18,7 @@ type NodeSpec = {
 
 type Pt = { x: number; y: number };
 
-type EdgeShape = "spine" | "arc-up" | "arc-down" | "self" | "back";
+type EdgeShape = "auto" | "arc-up" | "arc-down" | "self" | "back";
 
 type EdgeSpec = {
   id: string;
@@ -33,55 +33,59 @@ type EdgeSpec = {
   labelDy?: number;
   spread?: number;
   startDy?: number;
+  // "auto" shape only: how far, and to which side, the curve bows away from
+  // a straight line between the two nodes. Negative/positive picks the side.
+  bow?: number;
 };
 
 const W = 200;
 const H = 56;
 const HALF_W = W / 2;
 const HALF_H = H / 2;
-const VB_W = 640;
-const VB_H = 1220;
+const VB_W = 1180;
+const VB_H = 680;
 
 const clamp = (v: number, min: number, max: number) =>
   Math.min(Math.max(v, min), max);
 
-// Node layout mirrors the Core State Machine mermaid diagram in PLAN.md
-// verbatim: INTRO through COMPLETE, including the comprehension loop
-// (CHECK <-> REMEDIATION) and the iteration loop (FEEDBACK -> ITERATION ->
-// CODING / HINT_LADDER). Captions describe what each node really does.
-// Spine x-coordinates wave gently rather than pinning to one column -- a
-// hand-placed feel instead of a rigid flowchart, while still reading
-// top-to-bottom as the primary path. Branch/loop nodes sit closer in than
-// before so their back-edges don't have to travel as far to reconnect.
+// Node layout mirrors the Core State Machine mermaid diagram in PLAN.md:
+// INTRO through COMPLETE, including the comprehension loop (CHECK <->
+// REMEDIATION) and the iteration loop (FEEDBACK -> ITERATION -> CODING /
+// HINT_LADDER). Captions describe what each node really does.
+// Positions are scattered across a wide canvas rather than following
+// reading order top-to-bottom -- this is meant to read as a real graph
+// diagram (a web of nodes and connectors), not a flowchart. The numbered
+// caption list below the diagram is what carries the "read this in
+// sequence" job, so the diagram itself is free to just be a diagram.
 const nodes: NodeSpec[] = [
-  { id: "INTRO", label: "INTRO", kind: "Entry node", x: 270, y: 40, variant: "spine", caption: "Introduces the problem in our own wording. Nothing here is scraped LeetCode text." },
-  { id: "COMPREHENSION_CHECK", label: "COMPREHENSION_CHECK", kind: "LLM-graded gate", x: 210, y: 185, variant: "spine", caption: "Grades your explanation against the problem's real edge cases, not vibes." },
-  { id: "COMPREHENSION_REMEDIATION", label: "COMPREHENSION_REMEDIATION", kind: "Remediation loop", x: 462, y: 155, variant: "side", caption: "Surfaces one authored loophole at a time until you actually see it, then sends you back to explain again." },
-  { id: "APPROACH_DISCUSSION", label: "APPROACH_DISCUSSION", kind: "Discussion node", x: 318, y: 335, variant: "spine", caption: "You describe an approach out loud before a single line of code gets written." },
-  { id: "BRUTE_FORCE_ANALYSIS", label: "BRUTE_FORCE_ANALYSIS", kind: "LLM-graded gate", x: 236, y: 478, variant: "spine", caption: "Grades your brute force against an authored 'why it's insufficient,' never an improvised excuse." },
-  { id: "HINT_LADDER", label: "HINT_LADDER", kind: "Authored hint ladder", x: 322, y: 620, variant: "spine", caption: "Hints are pulled verbatim from an authored ladder. The model only decides when you've earned the next level." },
-  { id: "CODING", label: "CODING", kind: "Editor node", x: 246, y: 760, variant: "spine", caption: "You write real code in the editor while the tutor asks why, referencing your actual diff." },
-  { id: "EXECUTING", label: "EXECUTING", kind: "Sandbox call (Piston)", x: 330, y: 898, variant: "spine", caption: "Your code runs in a real sandbox against real test cases. Nothing here is simulated." },
-  { id: "FEEDBACK", label: "FEEDBACK", kind: "Verdict narration", x: 236, y: 1032, variant: "spine", caption: "Narrates Piston's actual result. It explains a verdict, it never invents one." },
-  { id: "ITERATION", label: "ITERATION", kind: "Iteration router", x: 472, y: 1000, variant: "side", caption: "Failed a test, or complexity's off? Back to coding, or back to hints if you're fundamentally stuck." },
-  { id: "COMPLETE", label: "COMPLETE", kind: "Terminal node", x: 288, y: 1170, variant: "terminal", caption: "All tests pass and the complexity holds up. Done, for real this time." },
+  { id: "INTRO", label: "INTRO", kind: "Entry node", x: 150, y: 340, variant: "spine", caption: "Introduces the problem in our own wording. Nothing here is scraped LeetCode text." },
+  { id: "COMPREHENSION_CHECK", label: "COMPREHENSION_CHECK", kind: "LLM-graded gate", x: 430, y: 130, variant: "spine", caption: "Grades your explanation against the problem's real edge cases, not vibes." },
+  { id: "COMPREHENSION_REMEDIATION", label: "COMPREHENSION_REMEDIATION", kind: "Remediation loop", x: 700, y: 130, variant: "side", caption: "Surfaces one authored loophole at a time until you actually see it, then sends you back to explain again." },
+  { id: "APPROACH_DISCUSSION", label: "APPROACH_DISCUSSION", kind: "Discussion node", x: 960, y: 230, variant: "spine", caption: "You describe an approach out loud before a single line of code gets written." },
+  { id: "BRUTE_FORCE_ANALYSIS", label: "BRUTE_FORCE_ANALYSIS", kind: "LLM-graded gate", x: 1000, y: 420, variant: "spine", caption: "Grades your brute force against an authored 'why it's insufficient,' never an improvised excuse." },
+  { id: "HINT_LADDER", label: "HINT_LADDER", kind: "Authored hint ladder", x: 700, y: 480, variant: "spine", caption: "Hints are pulled verbatim from an authored ladder. The model only decides when you've earned the next level." },
+  { id: "CODING", label: "CODING", kind: "Editor node", x: 430, y: 460, variant: "spine", caption: "You write real code in the editor while the tutor asks why, referencing your actual diff." },
+  { id: "EXECUTING", label: "EXECUTING", kind: "Sandbox call (Piston)", x: 150, y: 520, variant: "spine", caption: "Your code runs in a real sandbox against real test cases. Nothing here is simulated." },
+  { id: "FEEDBACK", label: "FEEDBACK", kind: "Verdict narration", x: 280, y: 620, variant: "spine", caption: "Narrates Piston's actual result. It explains a verdict, it never invents one." },
+  { id: "ITERATION", label: "ITERATION", kind: "Iteration router", x: 780, y: 600, variant: "side", caption: "Failed a test, or complexity's off? Back to coding, or back to hints if you're fundamentally stuck." },
+  { id: "COMPLETE", label: "COMPLETE", kind: "Terminal node", x: 1000, y: 600, variant: "terminal", caption: "All tests pass and the complexity holds up. Done, for real this time." },
 ];
 
 const edges: EdgeSpec[] = [
-  { id: "e-intro-check", from: "INTRO", to: "COMPREHENSION_CHECK", shape: "spine" },
-  { id: "e-check-approach", from: "COMPREHENSION_CHECK", to: "APPROACH_DISCUSSION", shape: "spine", label: "ready to advance" },
-  { id: "e-approach-brute", from: "APPROACH_DISCUSSION", to: "BRUTE_FORCE_ANALYSIS", shape: "spine", label: "brute force described" },
-  { id: "e-brute-hint", from: "BRUTE_FORCE_ANALYSIS", to: "HINT_LADDER", shape: "spine" },
-  { id: "e-hint-coding", from: "HINT_LADDER", to: "CODING", shape: "spine", label: "optimal approach found" },
-  { id: "e-coding-exec", from: "CODING", to: "EXECUTING", shape: "spine", label: "submit via data channel" },
-  { id: "e-exec-feedback", from: "EXECUTING", to: "FEEDBACK", shape: "spine" },
-  { id: "e-feedback-complete", from: "FEEDBACK", to: "COMPLETE", shape: "spine", label: "all pass + good complexity" },
-  { id: "e-check-remediation", from: "COMPREHENSION_CHECK", to: "COMPREHENSION_REMEDIATION", shape: "arc-up", branch: true, label: "gaps found", labelDy: -14 },
+  { id: "e-intro-check", from: "INTRO", to: "COMPREHENSION_CHECK", shape: "auto", bow: -40 },
+  { id: "e-check-approach", from: "COMPREHENSION_CHECK", to: "APPROACH_DISCUSSION", shape: "auto", bow: 34, label: "ready to advance", labelDy: -10 },
+  { id: "e-approach-brute", from: "APPROACH_DISCUSSION", to: "BRUTE_FORCE_ANALYSIS", shape: "auto", bow: -28, label: "brute force described", labelDy: -10 },
+  { id: "e-brute-hint", from: "BRUTE_FORCE_ANALYSIS", to: "HINT_LADDER", shape: "auto", bow: 30 },
+  { id: "e-hint-coding", from: "HINT_LADDER", to: "CODING", shape: "auto", bow: -34, label: "optimal approach found", labelDx: -46, labelDy: 4 },
+  { id: "e-coding-exec", from: "CODING", to: "EXECUTING", shape: "auto", bow: 44, label: "submit via data channel", labelDx: -30, labelDy: -22 },
+  { id: "e-exec-feedback", from: "EXECUTING", to: "FEEDBACK", shape: "auto", bow: -28 },
+  { id: "e-feedback-complete", from: "FEEDBACK", to: "COMPLETE", shape: "auto", bow: 60, label: "all pass + good complexity", labelDy: -12 },
+  { id: "e-check-remediation", from: "COMPREHENSION_CHECK", to: "COMPREHENSION_REMEDIATION", shape: "arc-up", branch: true, label: "gaps found", labelDx: 10, labelDy: -10 },
   { id: "e-remediation-check", from: "COMPREHENSION_REMEDIATION", to: "COMPREHENSION_CHECK", shape: "arc-down", branch: true },
   { id: "e-hint-self", from: "HINT_LADDER", to: "HINT_LADDER", shape: "self", branch: true, label: "stuck 2+ turns" },
-  { id: "e-feedback-iteration", from: "FEEDBACK", to: "ITERATION", shape: "arc-up", branch: true, label: "tests failed / can improve", labelDy: -16 },
+  { id: "e-feedback-iteration", from: "FEEDBACK", to: "ITERATION", shape: "arc-up", branch: true, spread: 46, label: "tests failed / can improve", labelDx: 4, labelDy: -18 },
   { id: "e-iteration-coding", from: "ITERATION", to: "CODING", shape: "back", branch: true, spread: 90, startDy: -14 },
-  { id: "e-iteration-hint", from: "ITERATION", to: "HINT_LADDER", shape: "back", branch: true, spread: 76, startDy: 14, label: "fundamentally stuck again", labelDx: 58, labelDy: -8 },
+  { id: "e-iteration-hint", from: "ITERATION", to: "HINT_LADDER", shape: "back", branch: true, spread: 70, startDy: 14, label: "fundamentally stuck again", labelDx: 20, labelDy: -8 },
 ];
 
 const VIEW_W = VB_W;
@@ -95,6 +99,17 @@ type BuiltEdge = {
   anchor: "start" | "middle";
 };
 
+// Where a ray from a box's centre toward some direction exits the box's
+// rectangular boundary -- used so edges leave/enter from whichever side
+// actually faces the other node, instead of assuming a fixed layout.
+function rectExit(cx: number, cy: number, dirX: number, dirY: number): Pt {
+  if (dirX === 0 && dirY === 0) return { x: cx, y: cy };
+  const tx = dirX !== 0 ? HALF_W / Math.abs(dirX) : Infinity;
+  const ty = dirY !== 0 ? HALF_H / Math.abs(dirY) : Infinity;
+  const t = Math.min(tx, ty);
+  return { x: cx + t * dirX, y: cy + t * dirY };
+}
+
 // Every edge is derived from live node centres so the paths follow a node the
 // moment it is dragged. Curves are smooth cubic/quadratic beziers with soft
 // control handles, so nothing reads as a hard mechanical elbow.
@@ -103,20 +118,37 @@ function buildEdge(edge: EdgeSpec, pos: Record<string, Pt>): BuiltEdge {
   const b = pos[edge.to];
 
   switch (edge.shape) {
-    case "spine": {
-      const sy = a.y + HALF_H;
-      const ey = b.y - HALF_H;
-      const k = Math.max(26, Math.abs(ey - sy) * 0.42);
+    case "auto": {
+      // Nodes are scattered rather than stacked, so the exit/entry side is
+      // derived from the actual direction between the two centres (works
+      // for horizontal, vertical, or diagonal pairs alike), and the curve
+      // bows gently away from the straight line rather than running dead
+      // straight -- a hand-drawn feel instead of a wiring diagram.
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len;
+      const uy = dy / len;
+      const s = rectExit(a.x, a.y, ux, uy);
+      const e = rectExit(b.x, b.y, -ux, -uy);
+      const mx = (s.x + e.x) / 2;
+      const my = (s.y + e.y) / 2;
+      const bow = edge.bow ?? 24;
+      // perpendicular to the s->e direction
+      const px = -uy;
+      const py = ux;
+      const cx = mx + px * bow;
+      const cy = my + py * bow;
       return {
-        d: `M ${a.x},${sy} C ${a.x},${sy + k} ${b.x},${ey - k} ${b.x},${ey}`,
-        lx: (a.x + b.x) / 2 + 14,
-        ly: (sy + ey) / 2 + 4,
-        anchor: "start",
+        d: `M ${s.x},${s.y} Q ${cx},${cy} ${e.x},${e.y}`,
+        lx: cx + (edge.labelDx ?? 0),
+        ly: cy + (edge.labelDy ?? 0),
+        anchor: "middle",
       };
     }
     case "arc-up": {
       const nudge = 14;
-      const bow = 26;
+      const bow = edge.spread ?? 26;
       const s = { x: a.x + HALF_W, y: a.y - nudge };
       const e = { x: b.x - HALF_W, y: b.y - nudge };
       const mx = (s.x + e.x) / 2;
@@ -301,7 +333,7 @@ export function GraphSection() {
   if (hoveredNode && hoveredPos) {
     tipX = Math.min(Math.max(hoveredPos.x - TIP_W / 2, 12), VIEW_W - 12 - TIP_W);
     tipY =
-      hoveredPos.y > 980
+      hoveredPos.y > VB_H - TIP_H - HALF_H - 24
         ? hoveredPos.y - H / 2 - TIP_H - 12
         : hoveredPos.y + H / 2 + 12;
   }
@@ -347,8 +379,8 @@ export function GraphSection() {
         <div className="mt-12 overflow-x-auto">
           <svg
             ref={svgRef}
-            viewBox="0 0 640 1220"
-            className="mx-auto w-full max-w-[680px] touch-none select-none"
+            viewBox="0 0 1180 680"
+            className="mx-auto w-full max-w-[1180px] touch-none select-none"
             role="img"
             aria-label="Interactive LangGraph state machine diagram from INTRO to COMPLETE, including the comprehension and hint/coding/execution loops. Nodes can be dragged."
           >
