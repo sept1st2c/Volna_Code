@@ -49,18 +49,22 @@ const clamp = (v: number, min: number, max: number) =>
 // verbatim: INTRO through COMPLETE, including the comprehension loop
 // (CHECK <-> REMEDIATION) and the iteration loop (FEEDBACK -> ITERATION ->
 // CODING / HINT_LADDER). Captions describe what each node really does.
+// Spine x-coordinates wave gently rather than pinning to one column -- a
+// hand-placed feel instead of a rigid flowchart, while still reading
+// top-to-bottom as the primary path. Branch/loop nodes sit closer in than
+// before so their back-edges don't have to travel as far to reconnect.
 const nodes: NodeSpec[] = [
-  { id: "INTRO", label: "INTRO", kind: "Entry node", x: 200, y: 40, variant: "spine", caption: "Introduces the problem in our own wording. Nothing here is scraped LeetCode text." },
-  { id: "COMPREHENSION_CHECK", label: "COMPREHENSION_CHECK", kind: "LLM-graded gate", x: 200, y: 180, variant: "spine", caption: "Grades your explanation against the problem's real edge cases, not vibes." },
-  { id: "COMPREHENSION_REMEDIATION", label: "COMPREHENSION_REMEDIATION", kind: "Remediation loop", x: 500, y: 180, variant: "side", caption: "Surfaces one authored loophole at a time until you actually see it, then sends you back to explain again." },
-  { id: "APPROACH_DISCUSSION", label: "APPROACH_DISCUSSION", kind: "Discussion node", x: 200, y: 320, variant: "spine", caption: "You describe an approach out loud before a single line of code gets written." },
-  { id: "BRUTE_FORCE_ANALYSIS", label: "BRUTE_FORCE_ANALYSIS", kind: "LLM-graded gate", x: 200, y: 460, variant: "spine", caption: "Grades your brute force against an authored 'why it's insufficient,' never an improvised excuse." },
-  { id: "HINT_LADDER", label: "HINT_LADDER", kind: "Authored hint ladder", x: 200, y: 600, variant: "spine", caption: "Hints are pulled verbatim from an authored ladder. The model only decides when you've earned the next level." },
-  { id: "CODING", label: "CODING", kind: "Editor node", x: 200, y: 740, variant: "spine", caption: "You write real code in the editor while the tutor asks why, referencing your actual diff." },
-  { id: "EXECUTING", label: "EXECUTING", kind: "Sandbox call (Piston)", x: 200, y: 880, variant: "spine", caption: "Your code runs in a real sandbox against real test cases. Nothing here is simulated." },
-  { id: "FEEDBACK", label: "FEEDBACK", kind: "Verdict narration", x: 200, y: 1020, variant: "spine", caption: "Narrates Piston's actual result. It explains a verdict, it never invents one." },
-  { id: "ITERATION", label: "ITERATION", kind: "Iteration router", x: 500, y: 1020, variant: "side", caption: "Failed a test, or complexity's off? Back to coding, or back to hints if you're fundamentally stuck." },
-  { id: "COMPLETE", label: "COMPLETE", kind: "Terminal node", x: 200, y: 1160, variant: "terminal", caption: "All tests pass and the complexity holds up. Done, for real this time." },
+  { id: "INTRO", label: "INTRO", kind: "Entry node", x: 270, y: 40, variant: "spine", caption: "Introduces the problem in our own wording. Nothing here is scraped LeetCode text." },
+  { id: "COMPREHENSION_CHECK", label: "COMPREHENSION_CHECK", kind: "LLM-graded gate", x: 210, y: 185, variant: "spine", caption: "Grades your explanation against the problem's real edge cases, not vibes." },
+  { id: "COMPREHENSION_REMEDIATION", label: "COMPREHENSION_REMEDIATION", kind: "Remediation loop", x: 462, y: 155, variant: "side", caption: "Surfaces one authored loophole at a time until you actually see it, then sends you back to explain again." },
+  { id: "APPROACH_DISCUSSION", label: "APPROACH_DISCUSSION", kind: "Discussion node", x: 318, y: 335, variant: "spine", caption: "You describe an approach out loud before a single line of code gets written." },
+  { id: "BRUTE_FORCE_ANALYSIS", label: "BRUTE_FORCE_ANALYSIS", kind: "LLM-graded gate", x: 236, y: 478, variant: "spine", caption: "Grades your brute force against an authored 'why it's insufficient,' never an improvised excuse." },
+  { id: "HINT_LADDER", label: "HINT_LADDER", kind: "Authored hint ladder", x: 322, y: 620, variant: "spine", caption: "Hints are pulled verbatim from an authored ladder. The model only decides when you've earned the next level." },
+  { id: "CODING", label: "CODING", kind: "Editor node", x: 246, y: 760, variant: "spine", caption: "You write real code in the editor while the tutor asks why, referencing your actual diff." },
+  { id: "EXECUTING", label: "EXECUTING", kind: "Sandbox call (Piston)", x: 330, y: 898, variant: "spine", caption: "Your code runs in a real sandbox against real test cases. Nothing here is simulated." },
+  { id: "FEEDBACK", label: "FEEDBACK", kind: "Verdict narration", x: 236, y: 1032, variant: "spine", caption: "Narrates Piston's actual result. It explains a verdict, it never invents one." },
+  { id: "ITERATION", label: "ITERATION", kind: "Iteration router", x: 472, y: 1000, variant: "side", caption: "Failed a test, or complexity's off? Back to coding, or back to hints if you're fundamentally stuck." },
+  { id: "COMPLETE", label: "COMPLETE", kind: "Terminal node", x: 288, y: 1170, variant: "terminal", caption: "All tests pass and the complexity holds up. Done, for real this time." },
 ];
 
 const edges: EdgeSpec[] = [
@@ -76,8 +80,8 @@ const edges: EdgeSpec[] = [
   { id: "e-remediation-check", from: "COMPREHENSION_REMEDIATION", to: "COMPREHENSION_CHECK", shape: "arc-down", branch: true },
   { id: "e-hint-self", from: "HINT_LADDER", to: "HINT_LADDER", shape: "self", branch: true, label: "stuck 2+ turns" },
   { id: "e-feedback-iteration", from: "FEEDBACK", to: "ITERATION", shape: "arc-up", branch: true, label: "tests failed / can improve", labelDy: -16 },
-  { id: "e-iteration-coding", from: "ITERATION", to: "CODING", shape: "back", branch: true, spread: 120, startDy: -14 },
-  { id: "e-iteration-hint", from: "ITERATION", to: "HINT_LADDER", shape: "back", branch: true, spread: 152, startDy: 14, label: "fundamentally stuck again", labelDx: 116, labelDy: -8 },
+  { id: "e-iteration-coding", from: "ITERATION", to: "CODING", shape: "back", branch: true, spread: 90, startDy: -14 },
+  { id: "e-iteration-hint", from: "ITERATION", to: "HINT_LADDER", shape: "back", branch: true, spread: 76, startDy: 14, label: "fundamentally stuck again", labelDx: 58, labelDy: -8 },
 ];
 
 const VIEW_W = VB_W;
