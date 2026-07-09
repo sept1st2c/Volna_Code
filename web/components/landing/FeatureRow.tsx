@@ -22,14 +22,19 @@ export function FeatureRow() {
       <div className="grid gap-6 md:grid-cols-3">
         {features.map((feature, i) => (
           <Reveal key={feature.title} delay={i * 0.08} className="h-full">
-            <SpotlightCard className="h-full rounded-xl border border-hairline-soft bg-surface-2 p-8">
-              <span
-                className="flex h-9 w-9 items-center justify-center rounded-md font-mono text-sm font-semibold text-on-primary"
-                style={{ background: "var(--gradient-ember)" }}
-              >
-                {i + 1}
-              </span>
-              <h3 className="mt-5 text-[22px] font-medium leading-[1.3] text-ink">
+            <SpotlightCard className="group/card h-full rounded-xl border border-hairline-soft bg-white/[0.015] p-8">
+              <div className="flex items-baseline gap-3">
+                <span className="font-mono text-[13px] text-stone transition-colors duration-300 group-hover/card:text-primary">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="h-px flex-1 bg-hairline-soft transition-colors duration-300 group-hover/card:bg-primary/40" />
+                {i < features.length - 1 && (
+                  <span className="font-mono text-[10px] uppercase tracking-wide text-stone/70">
+                    next
+                  </span>
+                )}
+              </div>
+              <h3 className="mt-6 text-[22px] font-medium leading-[1.3] text-ink">
                 {feature.title}
               </h3>
               <p className="mt-3 text-[15px] leading-[1.6] text-slate">
