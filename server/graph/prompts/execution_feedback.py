@@ -29,6 +29,22 @@ def _select_failing_case(problem: Problem, execution_result: list[dict]) -> tupl
     return chosen, by_id.get(chosen.get("id"))
 
 
+def _is_uniform_exception_failure(execution_result: list[dict], failures: list[dict]) -> bool:
+    """True when every failing case is an EXCEPTION (not a wrong-answer
+    mismatch) and they all share the exact same error string -- i.e. a
+    systemic failure like a missing/misnamed entry-point function or a bug
+    that blows up on every input, rather than a logic bug specific to one
+    tricky input. Distinguishing this matters because an authored
+    `explanation_if_failed` is written to explain why a WRONG ANSWER happens
+    on a specific tricky input -- attaching it to a failure that is actually
+    "the function doesn't exist at all" would misleadingly frame a systemic
+    crash as if it were about that input's edge-case content."""
+    if not failures or any("error" not in r for r in failures):
+        return False
+    errors = {r["error"] for r in failures}
+    return len(errors) == 1 and len(failures) == len(execution_result)
+
+
 def build_user_prompt(problem: Problem, execution_result: list[dict], all_tests_passed: bool) -> str:
     total = len(execution_result)
 
@@ -39,6 +55,8 @@ REAL, already-computed execution result: all {total} test case(s) passed.
 
 Narrate this real result to the student. Do not add any caveat or hedge that isn't true -- everything genuinely passed."""
 
+    failures = [r for r in execution_result if not r.get("passed", False)]
+    uniform_exception_failure = _is_uniform_exception_failure(execution_result, failures)
     failing_case, matching_test_case = _select_failing_case(problem, execution_result)
 
     detail_lines = [f"- id: {failing_case.get('id')}"]
@@ -48,8 +66,25 @@ Narrate this real result to the student. Do not add any caveat or hedge that isn
         detail_lines.append(f"- actual output: {failing_case.get('actual')!r}")
         detail_lines.append(f"- expected output: {failing_case.get('expected')!r}")
 
+    if uniform_exception_failure:
+        detail_lines.append(
+            f"- this exact same error occurred on ALL {total} test case(s), not just this one -- "
+            "this points to something fundamental (e.g. the expected function is missing, "
+            "misnamed, or crashes unconditionally), not a bug specific to this input's content"
+        )
+
     explanation_block = ""
-    if matching_test_case is not None and matching_test_case.explanation_if_failed:
+    # Only attach the authored `explanation_if_failed` for a genuine
+    # wrong-answer mismatch, and never when the failure is a systemic
+    # exception shared by every case -- that authored text explains why a
+    # WRONG ANSWER happens on this specific tricky input, which doesn't apply
+    # when the real story is "nothing ran at all."
+    if (
+        matching_test_case is not None
+        and matching_test_case.explanation_if_failed
+        and "error" not in failing_case
+        and not uniform_exception_failure
+    ):
         explanation_block = (
             "\n\nAuthored explanation for why this exact case matters (use this as your grounding, "
             "do not invent a different reason):\n"

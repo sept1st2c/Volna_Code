@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class TestCase(BaseModel):
@@ -37,7 +37,9 @@ class Loophole(BaseModel):
 
 
 class ComprehensionRubric(BaseModel):
-    key_points: list[str]
+    # Must be non-empty: comprehension_node's prompt grades against this list
+    # verbatim, so an empty rubric would grade against nothing.
+    key_points: list[str] = Field(min_length=1)
 
 
 class Problem(BaseModel):
@@ -55,6 +57,14 @@ class Problem(BaseModel):
     test_cases: list[TestCase]
     brute_force: BruteForce
     optimal_approach: OptimalApproach
-    hint_ladder: list[HintLevel]
-    common_loopholes: list[Loophole]
+    # Must be non-empty: hints.py's hint_node computes
+    # `max_level = len(hint_ladder) - 1` and always indexes
+    # `hint_ladder[hint_level]` -- an empty ladder would make max_level -1
+    # and raise IndexError on the very first HINT_LADDER turn.
+    hint_ladder: list[HintLevel] = Field(min_length=1)
+    # loophole_node already degrades gracefully for an empty list (its
+    # `if next_loophole is None` branch), but a non-empty list is still
+    # required content-wise -- the comprehension gate is meant to exercise at
+    # least one authored edge case per problem.
+    common_loopholes: list[Loophole] = Field(min_length=1)
     comprehension_rubric: ComprehensionRubric

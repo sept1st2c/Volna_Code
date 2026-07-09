@@ -100,6 +100,17 @@ _ALREADY_SOLVED_NARRATION = (
 )
 _EXECUTING_BUSY_NARRATION = "Still running your code -- one moment."
 
+# Belt-and-suspenders fallback for when `get_graph().ainvoke(...)` raises
+# despite every node's own Groq/Piston hardening (graph/llm.py's
+# generate_structured and execution/piston.py's run_python both now convert
+# real API/network failures into safe in-band fallback results rather than
+# exceptions) -- e.g. a genuinely unexpected bug. Never invents a DSA fact
+# or claims success; just asks the student to repeat themselves, matching
+# the "fail toward safe/honest" philosophy of every node's own _FALLBACK.
+_UNEXPECTED_ERROR_NARRATION = (
+    "Sorry, something went wrong on my end. Could you say that again?"
+)
+
 # Phases where a spoken turn writes into TutorState before the graph is
 # invoked. Keys are the phases `graph/build.py`'s `_entry_router` treats as
 # valid entry points that a spoken turn can rest at between invocations
@@ -159,6 +170,28 @@ def _build_submission_result(problem: Problem, execution_result: list[dict], all
     }
 
 
+def _build_error_submission_result(message: str) -> dict:
+    """Same `execution_result` shape as `_build_submission_result`, used as
+    the belt-and-suspenders payload when the graph invocation itself raises
+    unexpectedly (see `TutorAgent.handle_code_submission` and
+    `_wire_data_channel`'s `_run`). Always `allPassed: False` -- never claim
+    success that wasn't actually verified by the sandbox."""
+    return {
+        "type": "execution_result",
+        "submittedAt": datetime.now(timezone.utc).isoformat(),
+        "allPassed": False,
+        "cases": [
+            {
+                "id": "_worker_error",
+                "label": "_worker_error",
+                "status": "fail",
+                "isEdgeCase": False,
+                "message": message,
+            }
+        ],
+    }
+
+
 class TutorAgent(Agent):
     """One instance per room/session. Owns the running `TutorState` and is
     the sole place graph turns are invoked from."""
@@ -166,6 +199,17 @@ class TutorAgent(Agent):
     def __init__(self, problem_slug: str) -> None:
         super().__init__(instructions=_AGENT_INSTRUCTIONS)
         self.state: TutorState = initial_state(problem_slug)
+        # Concurrency guard for `handle_code_submission`: `_wire_data_channel`
+        # spawns a fresh `asyncio.create_task` per incoming `code_submit`
+        # message with no queueing, so a student double-clicking submit (or
+        # a frontend disabled-while-submitting race) can fire two overlapping
+        # calls. Without this flag, both would synchronously stomp
+        # `self.state["last_code"]`/`self.state["phase"]` before either
+        # `await`s the graph, so the first submission's own harness run could
+        # end up executing the SECOND submission's code. A plain bool (not an
+        # asyncio.Lock) is enough because asyncio is single-threaded and the
+        # check-then-set below has no `await` in between, so it can't race.
+        self._code_submission_in_flight = False
 
     async def _process_turn(self, user_text: str) -> str:
         """Core, directly-testable "run one graph turn given raw spoken
@@ -211,7 +255,24 @@ class TutorAgent(Agent):
                 phase,
             )
 
-        result = await get_graph().ainvoke(self.state)
+        try:
+            result = await get_graph().ainvoke(self.state)
+        except Exception:
+            # Belt-and-suspenders: every node's own Groq/Piston failure
+            # paths already fall back in-band (see graph/llm.py,
+            # execution/piston.py) so this should be unreachable in
+            # practice, but if some genuinely unexpected bug still raises
+            # here, the voice session must not die and the student must
+            # not be met with silence. `self.state` is deliberately left
+            # untouched -- resting phase doesn't change, so the next turn
+            # just retries the same step instead of silently skipping it.
+            logger.exception(
+                "TutorAgent._process_turn: graph invocation raised unexpectedly "
+                "at phase %r; keeping session alive with a safe narration",
+                phase,
+            )
+            return _UNEXPECTED_ERROR_NARRATION
+
         self.state.update(result)
         return self.state.get("narration", "")
 
@@ -229,19 +290,61 @@ class TutorAgent(Agent):
     async def handle_code_submission(self, code: str) -> dict:
         """Runs a code submission through EXECUTING -> execution_feedback,
         speaks the resulting narration, and returns the data-channel payload
-        the caller should publish back. Used by the data-channel handler."""
-        self.state["last_code"] = code
-        self.state["phase"] = "EXECUTING"
+        the caller should publish back. Used by the data-channel handler.
 
-        result = await get_graph().ainvoke(self.state)
-        self.state.update(result)
+        Rejects (rather than queues or interleaves) a submission that arrives
+        while a previous one is still in flight -- see the
+        `_code_submission_in_flight` guard set up in `__init__`. Queuing
+        would risk silently running stale code after a newer submission was
+        already intended; rejecting is honest about what actually happened.
+        """
+        if self._code_submission_in_flight:
+            logger.warning(
+                "TutorAgent.handle_code_submission: rejecting overlapping "
+                "code_submit while a previous submission is still running"
+            )
+            return _build_error_submission_result(
+                "Still running your previous submission -- please wait for it to finish before submitting again."
+            )
 
-        problem = get_problem(self.state["problem_slug"])
-        return _build_submission_result(
-            problem,
-            self.state.get("last_execution_result", []),
-            self.state.get("all_tests_passed", False),
-        )
+        self._code_submission_in_flight = True
+        try:
+            previous_phase = self.state.get("phase", "CODING")
+            self.state["last_code"] = code
+            self.state["phase"] = "EXECUTING"
+
+            try:
+                result = await get_graph().ainvoke(self.state)
+            except Exception:
+                # Same belt-and-suspenders reasoning as `_process_turn`. Critically,
+                # revert `phase` back off of "EXECUTING" -- if left there, every
+                # subsequent spoken turn would stall forever on
+                # `_EXECUTING_BUSY_NARRATION` (see the phase == "EXECUTING" branch
+                # above) with no way for the student to ever get unstuck, which is
+                # worse than the bug itself.
+                logger.exception(
+                    "TutorAgent.handle_code_submission: graph invocation raised "
+                    "unexpectedly; reverting phase %r -> %r so the student isn't "
+                    "stuck in a permanent 'still running' state",
+                    "EXECUTING",
+                    previous_phase,
+                )
+                self.state["phase"] = previous_phase
+                self.state["narration"] = _UNEXPECTED_ERROR_NARRATION
+                return _build_error_submission_result(
+                    "Something went wrong while running your code. Please try submitting again."
+                )
+
+            self.state.update(result)
+
+            problem = get_problem(self.state["problem_slug"])
+            return _build_submission_result(
+                problem,
+                self.state.get("last_execution_result", []),
+                self.state.get("all_tests_passed", False),
+            )
+        finally:
+            self._code_submission_in_flight = False
 
 
 def _resolve_problem_slug(room: rtc.Room) -> str:
@@ -293,9 +396,37 @@ def _wire_data_channel(room: rtc.Room, agent: TutorAgent, session: AgentSession)
         code = message.get("code", "")
 
         async def _run() -> None:
-            payload = await agent.handle_code_submission(code)
-            session.say(agent.state.get("narration", ""))
-            await room.local_participant.publish_data(json.dumps(payload), reliable=True)
+            # `handle_code_submission` already catches graph-invocation
+            # failures internally and returns a safe payload -- this
+            # try/except is for anything else in this coroutine (e.g.
+            # `session.say`/`publish_data` themselves raising). Without it,
+            # any exception here is swallowed silently by asyncio (logged
+            # only as "Task exception was never retrieved", since nothing
+            # ever awaits this task) and the student would see the submit
+            # button spin forever with zero feedback -- no narration, no
+            # execution_result message, nothing. That was a real bug: this
+            # coroutine previously had no error handling at all.
+            try:
+                payload = await agent.handle_code_submission(code)
+                session.say(agent.state.get("narration", ""))
+                await room.local_participant.publish_data(json.dumps(payload), reliable=True)
+            except Exception:
+                logger.exception(
+                    "data-channel code_submit handling raised unexpectedly; "
+                    "notifying the student instead of leaving the submission "
+                    "hanging with no response at all"
+                )
+                try:
+                    session.say(_UNEXPECTED_ERROR_NARRATION)
+                except Exception:
+                    logger.exception("failed to speak the fallback error narration")
+                try:
+                    fallback_payload = _build_error_submission_result(
+                        "Something went wrong while running your code. Please try submitting again."
+                    )
+                    await room.local_participant.publish_data(json.dumps(fallback_payload), reliable=True)
+                except Exception:
+                    logger.exception("failed to publish the fallback execution_result payload")
 
         asyncio.create_task(_run())
 

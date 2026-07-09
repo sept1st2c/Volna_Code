@@ -21,15 +21,30 @@ class PistonError(Exception):
 
 
 async def run_python(source: str, timeout_s: float = 15.0) -> dict:
-    """Submit source to Piston and return the raw run result (stdout/stderr/code)."""
+    """Submit source to Piston and return the raw run result (stdout/stderr/code).
+
+    Raises `PistonError` for every failure mode -- both an unexpected HTTP
+    status/compile error (as before) and, now, a network-level failure
+    reaching Piston at all (container down, connection refused, DNS failure,
+    request timeout). Without this, `httpx.ConnectError`/`httpx.TimeoutException`/
+    `httpx.HTTPError` would propagate straight past `executing_node`'s
+    `except PistonError` handler as a raw, unexpected exception type --
+    crashing the graph turn instead of producing the honest
+    "couldn't reach the sandbox" fallback that handler already knows how to
+    build.
+    """
     payload = {
         "language": "python",
         "version": PYTHON_VERSION,
         "files": [{"content": source}],
         "run_timeout": 3000,
     }
-    async with httpx.AsyncClient(timeout=timeout_s) as client:
-        resp = await client.post(PISTON_URL, json=payload)
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s) as client:
+            resp = await client.post(PISTON_URL, json=payload)
+    except httpx.HTTPError as e:
+        raise PistonError(f"Could not reach the code execution sandbox: {e}") from e
+
     if resp.status_code != 200:
         raise PistonError(f"Piston returned HTTP {resp.status_code}: {resp.text}")
     data = resp.json()

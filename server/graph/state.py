@@ -46,6 +46,13 @@ class TutorState(TypedDict, total=False):
     # hint ladder
     hint_level: int
     stuck_streak: int
+    # counts full "stuck for _STUCK_STREAK_THRESHOLD consecutive turns" cycles
+    # completed while already resting at the final hint level -- i.e. cycles
+    # that could no longer advance hint_level because there is no next level.
+    # Once this crosses hints.py's _MAX_HINT_REPEATS_BEFORE_REVEAL, hint_node
+    # stops repeating the same final hint and instead reveals the authored
+    # optimal approach directly (see hints.py for the full rationale).
+    hint_max_level_stuck_rounds: int
 
     # coding + execution
     last_code: str
@@ -67,5 +74,6 @@ def initial_state(problem_slug: str) -> TutorState:
         remediated_loophole_ids=[],
         hint_level=0,
         stuck_streak=0,
+        hint_max_level_stuck_rounds=0,
         session_facts="",
     )

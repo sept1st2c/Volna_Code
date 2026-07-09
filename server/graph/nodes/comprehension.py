@@ -6,6 +6,24 @@ from graph.schemas import ComprehensionGrade
 from graph.state import TutorState
 from problems import get_problem
 
+# Escape hatch: comprehension_node <-> loophole_node can otherwise cycle
+# forever if the LLM grader never returns ready_to_advance=True (grading is
+# non-deterministic run-to-run; genuinely correct explanations have been
+# observed taking 3-4 tries in real testing). Once total attempts at THIS
+# problem's comprehension check reach this cap, advance to
+# APPROACH_DISCUSSION regardless of the verdict, with an explicit, honest
+# narrated caveat -- never silently lower the grading bar (the verdict
+# itself, `covered_points`/`gaps`/`ready_to_advance`, is untouched; only the
+# phase transition is overridden, and the override is always spoken aloud).
+# Set comfortably above the observed 3-4-try non-determinism so genuine
+# back-and-forth remediation is never cut short.
+_MAX_COMPREHENSION_ATTEMPTS = 6
+
+_MOVING_ON_CAVEAT = (
+    " We've gone over this problem a good number of times now, so let's move on to talk through "
+    "an approach -- we can always circle back to this if it comes up again."
+)
+
 _FALLBACK = ComprehensionGrade(
     reasoning="Grading call failed after retry; defaulting to not-ready so the session never silently skips ahead.",
     score=0,
@@ -34,9 +52,24 @@ def comprehension_node(state: TutorState) -> dict:
         fallback=_FALLBACK,
     )
 
+    attempts = state.get("comprehension_attempts", 0) + 1
+    exhausted = attempts >= _MAX_COMPREHENSION_ATTEMPTS
+
+    if result.ready_to_advance:
+        phase = "APPROACH_DISCUSSION"
+        narration = result.feedback_to_user
+    elif exhausted:
+        # Honest, narrated escape hatch -- the grader still says not ready,
+        # but we advance anyway rather than trap the student here forever.
+        phase = "APPROACH_DISCUSSION"
+        narration = result.feedback_to_user + _MOVING_ON_CAVEAT
+    else:
+        phase = "COMPREHENSION_REMEDIATION"
+        narration = result.feedback_to_user
+
     return {
         "comprehension_result": result,
-        "comprehension_attempts": state.get("comprehension_attempts", 0) + 1,
-        "narration": result.feedback_to_user,
-        "phase": "APPROACH_DISCUSSION" if result.ready_to_advance else "COMPREHENSION_REMEDIATION",
+        "comprehension_attempts": attempts,
+        "narration": narration,
+        "phase": phase,
     }
