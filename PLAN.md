@@ -4,135 +4,199 @@
 
 The goal is a voice-driven AI tutor that walks a user through solving one DSA problem at a time the way a patient human tutor would: explain the problem, probe comprehension (surfacing edge cases/"loopholes" most people miss), grade the user's spoken approach (brute force first, then guide toward optimal via a hint ladder — never skipping ahead), let the user type real code while asking "why" about their decisions, then actually execute that code against test cases and give spoken feedback, looping until the problem is genuinely solved well.
 
-This is a from-scratch build in an empty directory — no existing code to integrate with. Decisions locked in with the user before this plan:
-- **Scope**: web app, single-user, local MVP, no auth/accounts — nail the core tutoring loop for one problem first.
-- **Code execution**: must be real sandboxed execution (not just LLM reasoning about code), via **Piston** (`https://emkc.org/api/v2/piston/execute`), a free public API requiring no key.
-- **Problems**: a small in-house curated problem bank (our own wording, not scraped LeetCode text) — a few classic DSA problems, each with statement, constraints, test cases (incl. deliberate edge cases), reference solution, brute-force description + why it's insufficient, an ordered hint ladder, and known loopholes.
-- **Budget**: effectively $0, so **Groq** is the unified provider for LLM (Llama 3.3 70B, free tier), STT (Whisper large-v3, free tier), and TTS (PlayAI TTS, free tier) — one API key, one provider, near-zero cost. Browser `SpeechSynthesis`/`SpeechRecognition` is the zero-cost fallback if Groq TTS/STT proves insufficient.
-- **LLM abstraction**: thin interface so the provider could be swapped later (e.g. to Claude) without a redesign — not over-engineered.
+Locked-in decisions:
+- **Scope**: web app, single-user, local MVP, no auth/accounts.
+- **Code execution**: real sandboxed execution via **Piston** (free, no key).
+- **Problems**: small in-house curated problem bank (our own wording, not scraped LeetCode text).
+- **Budget**: effectively $0. **Groq** free tier covers the LLM (Llama 3.3 70B) and STT (Whisper large-v3).
+- **Voice transport**: **Full LiveKit Agents framework** for real conversational voice — voice-activity detection, natural interruption, streamed turn-taking — instead of a record → upload → playback loop.
+- **Orchestration + brain: all in Python.** LiveKit's Agents framework is Python-first, so rather than splitting the brain (TypeScript/LangGraph.js) from the voice I/O (Python), the whole tutoring intelligence lives in **LangGraph (Python)** in the same runtime as the LiveKit agent worker. One language, one process type, no cross-language hop or duplicated schemas between "brain" and "mouth."
+- **Landing page**: built against the Mistral AI-derived design system in `DESIGN-mistral.ai.md` (sunset-orange/cream palette, editorial display type + Inter, the signature "sunset stripe" footer band).
+
+## Architecture
+
+Two services: a Next.js frontend (UI shell only — no tutoring logic) and a Python backend that owns everything else. The Python backend has two entry points sharing one codebase: a thin FastAPI app (stateless: mint LiveKit tokens, list problems) and the LiveKit Agent worker (the actual live tutoring loop — voice in, voice out, code in, verdict out). Session state lives only inside the agent worker process for the duration of a room; nothing needs a database or cross-process state sharing.
+
+```mermaid
+graph TD
+    subgraph Browser
+        UI[Next.js Frontend<br/>Landing page + Tutor UI]
+        LKClient[LiveKit Client SDK<br/>mic audio + playback + data channel]
+        Monaco[Monaco Code Editor]
+    end
+
+    subgraph LiveKit["LiveKit Cloud (free tier)"]
+        Room[WebRTC Room + Data Channel]
+    end
+
+    subgraph PyBackend["Python Backend (one codebase)"]
+        subgraph Agent["LiveKit Agent Worker — the live loop"]
+            VAD[Silero VAD]
+            STT[Groq Whisper STT]
+            Graph[LangGraph — the brain]
+            TTS[TTS Plugin]
+            Exec[Piston client]
+        end
+        FastAPI["FastAPI — thin & stateless<br/>token minting + problem listing"]
+        Bank[(Problem Bank — Pydantic)]
+    end
+
+    Piston[(Piston Sandbox)]
+
+    UI -->|fetch problems, get token| FastAPI --> Bank
+    UI --> LKClient
+    Monaco -->|code via data channel| LKClient
+    LKClient <-->|WebRTC audio + data| Room <--> Agent
+
+    VAD --> STT -->|transcript| Graph
+    Graph --> Bank
+    Graph -->|code submitted| Exec --> Piston --> Exec --> Graph
+    Graph -->|narratorText| TTS --> Room
+    Graph -->|structured state/result| Room
+```
 
 ## Tech Stack
 
-**Next.js 14+ (App Router) + TypeScript**, single deployable app — frontend and backend (API routes) in one process, ideal for a solo zero-budget MVP. No database: session state is single-user and ephemeral, held in an in-memory server-side store. Tailwind for styling. `@monaco-editor/react` (client-only, dynamically imported) for the code editor. Plain `fetch` request/response per turn — not WebSockets/SSE; the interaction is inherently turn-based (record → transcribe → grade → speak), so streaming is a later optimization, not a day-1 requirement.
+| Layer | Choice | Why |
+|---|---|---|
+| Frontend | Next.js 14+ (App Router) + TypeScript | UI shell only: landing page, problem selection, Monaco editor, LiveKit client SDK. No tutoring logic here. |
+| Backend | Python | Owns 100% of the tutoring intelligence and the real-time voice loop — one language, no schema duplication across a language boundary |
+| Orchestration | LangGraph (Python, `langgraph`) | Native, most mature implementation; nodes/conditional-edges match the FSM design; in-memory checkpointer is enough for a single-room MVP session |
+| Stateless API | FastAPI | `GET /problems`, `GET /problems/{slug}`, `POST /livekit/token` — nothing session-scoped |
+| LLM (grading) | Groq — Llama 3.3 70B, JSON mode, Python SDK | Free tier, fast, cheap-to-free |
+| STT | Groq Whisper large-v3 via `livekit-plugins-groq`, inside the agent worker | Better technical-vocabulary accuracy than browser recognition |
+| Voice transport + VAD | LiveKit Cloud (free tier) + LiveKit Agents (Python, native) + Silero VAD plugin | Real interruption handling, low-latency streaming, purpose-built for this |
+| TTS | TBD LiveKit-supported plugin — see Risks | Groq PlayAI availability as a LiveKit plugin is unverified |
+| Code execution | Piston (free public API), called from the agent worker via `httpx` | Real sandboxed execution against test cases |
+| Editor | `@monaco-editor/react` (client-only) | Code submitted to the agent worker over the LiveKit data channel — no separate REST execute endpoint needed |
+| Styling | Tailwind, tokens from `DESIGN-mistral.ai.md` | See Landing Page section |
+| Database | None | Session state lives only in the agent worker process for the room's lifetime |
 
-## Core State Machine
+## Core State Machine (LangGraph, Python)
 
-A deterministic FSM drives the session; the LLM is invoked *inside* states as a grader/narrator returning structured JSON, and a pure transition function `(state, validatedGraderOutput) => newState` decides what happens next — the LLM never picks its own next phase.
+Each phase is a LangGraph **node**. Grading nodes call Groq in JSON mode, validate with Pydantic, and return structured output; **conditional edges** read that structured output (never free text) to pick the next node — the LLM never chooses its own next phase.
 
-**Phases**: `INTRO → COMPREHENSION_CHECK ⇄ COMPREHENSION_REMEDIATION → APPROACH_DISCUSSION (brute force) → BRUTE_FORCE_ANALYSIS → HINT_LADDER → CODING → SUBMITTED/EXECUTING → FEEDBACK → ITERATION (loop to CODING or HINT_LADDER) → COMPLETE`
+```mermaid
+stateDiagram-v2
+    [*] --> INTRO
+    INTRO --> COMPREHENSION_CHECK
+    COMPREHENSION_CHECK --> COMPREHENSION_REMEDIATION: gaps found
+    COMPREHENSION_REMEDIATION --> COMPREHENSION_CHECK
+    COMPREHENSION_CHECK --> APPROACH_DISCUSSION: readyToAdvance
+    APPROACH_DISCUSSION --> BRUTE_FORCE_ANALYSIS: brute force described
+    BRUTE_FORCE_ANALYSIS --> HINT_LADDER
+    HINT_LADDER --> HINT_LADDER: stuck 2+ consecutive turns
+    HINT_LADDER --> CODING: optimal approach found
+    CODING --> EXECUTING: submit (via data channel)
+    EXECUTING --> FEEDBACK
+    FEEDBACK --> ITERATION: tests failed / can improve
+    ITERATION --> CODING
+    ITERATION --> HINT_LADDER: fundamentally stuck again
+    FEEDBACK --> COMPLETE: all pass + good complexity
+    COMPLETE --> [*]
+```
 
-**Session shape** (conceptual): `sessionId, problemId, phase, history[]`, plus per-phase tracking objects — `comprehension{score, gaps, edgeCasesPresented, passed}`, `approach{bruteForceGradeScore, optimalApproachFound, hintsRevealed, stuckSignalStreak}`, `coding{currentCode, probingQuestionsAsked, lastActivityTimestamp}`, `execution{submissions, lastResult}`.
+**Anti-rushing guardrail**: `HINT_LADDER` only advances a level once `userSeemsStuck` is true for **2+ consecutive turns** *and* a probing question has already been asked at the current level. A manual "give me a hint" button is a user-controlled override regardless of auto stuck-detection.
 
-**Structured grader contracts** (Zod-validated): `ComprehensionGrade{score, dimensions, gaps, readyToAdvance, feedbackToUser}`, `ApproachGrade{identifiedApproach, complexityCorrect, matchesExpected, readyToAdvance, userSeemsStuck, feedbackToUser}`, `StuckSignal{userSeemsStuck, confidence, reasoning}`. Groq is called with `response_format: json_object`; on schema-validation failure, one repair retry, then a safe deterministic fallback (e.g. `readyToAdvance:false`) — the FSM must never crash or hang on a bad LLM response.
+**LLM node contracts** (Pydantic-validated, `response_format: json_object`):
 
-**Anti-rushing guardrail**: the hint ladder only advances a level after `userSeemsStuck` is true for **2+ consecutive turns** *and* at least one probing question has already been asked at that level. A manual "give me a hint" button is a user-controlled override regardless of auto stuck-detection, since stuck-detection is inherently fuzzy.
+| Node | Grounding context injected | Output schema | Content source |
+|---|---|---|---|
+| Comprehension grader | `comprehension_rubric.key_points`, `constraints`, user's speech | `ComprehensionGrade` | LLM judges coverage only |
+| Edge-case remediation | one `common_loopholes` entry | narration only | Loophole text authored verbatim, LLM only rephrases delivery |
+| Approach grader (brute force / optimal) | `brute_force`/`optimal_approach` description + complexity | `ApproachGrade` | "Why insufficient" text is authored, not generated |
+| Hint delivery | current `hint_ladder[level].text` | `StuckSignal` + narration | Hint text pulled **verbatim**; LLM only decides *when* and phrases delivery |
+| Coding-pause probe | actual code diff (from the last data-channel update) | narration question only | Must reference real code, not paraphrase |
+| Execution feedback | Piston's actual parsed result | narration only | LLM explains *why*, never invents a pass/fail it wasn't given |
+
+## LLM Brain — Anti-Hallucination Principle
+
+**The LLM is never the source of DSA truth.** Every fact the tutor asserts lives in the authored problem bank or in Piston's real execution output. The LLM's only two jobs per node are to **judge** the user's input against that authored ground truth and to **narrate** the verdict in a warm tutor voice — it's never asked to "know" DSA from training data, which matters because classic problems are exactly what a model has memorized (possibly mismatched) variants of.
+
+Mechanisms:
+1. Explicit *"grade solely using the context below, ignore your own memorized knowledge of this problem"* instruction in every grading prompt.
+2. Single combined grade+narrate call per node, with a `reasoning` field ordered **before** verdict fields (implicit chain-of-thought inside the JSON object) — keeps latency/rate-limit cost to one call.
+3. Authored content (hints, loopholes, brute-force explanations) is always injected as literal text to *deliver*, never *produce from scratch*.
+4. Low temperature (~0.2–0.3) for all grading nodes.
+5. Pydantic validation is the hard backstop: one repair retry, then a deterministic fallback (`ready_to_advance=False`) — the graph must never crash or hang on bad LLM output.
+6. Compact rolling `session_facts` summary (not full transcript) fed into each node — bounds token cost and prevents long-session drift.
+7. Log every (prompt, response) pair during build/tuning to actually improve the grading prompts against real phrasing.
+
+*Open trade-off, not pre-decided*: if blending "strict judge" and "warm tutor" hurts grading quality, split into two sequential Groq calls (pure-JSON grader, then a narrator pass) — revisit once real output is observed, not before.
 
 ## Problem Bank
 
-`/problems/<slug>/problem.ts`, each conforming to a shared Zod schema in `/problems/schema.ts` (type-checked at author time). Shape: `id, slug, title, difficulty, statement (markdown, original wording), constraints[], starterCode{[lang]}, testCases[{id, input, expectedOutput, isEdgeCase, edgeCaseTag, explanationIfFailed}], referenceSolution{[lang]}, bruteForce{description, complexity, whyInsufficient}, optimalApproach{description, complexity}, hintLadder[{level, text}], commonLoopholes[{id, description, relatedTestCaseId}], comprehensionRubric{keyPoints[]}, executionHarnessTemplate{[lang]}`. **One language only for MVP** (Python or JS) to minimize harness-authoring work; expand later.
+`/server/problems/<slug>.py`, each a Pydantic model validated against a shared schema in `/server/problems/schema.py`.
 
-## Groq Integration
+| Field | Purpose |
+|---|---|
+| `statement`, `constraints` | Our own wording — not copied LeetCode text |
+| `starter_code`, `reference_solution` | Single language for MVP (Python or JS) to limit harness-authoring work |
+| `test_cases` | Each tagged `is_edge_case` + `edge_case_tag` + `explanation_if_failed` |
+| `brute_force{description, complexity, why_insufficient}` | Authored ground truth for the brute-force node |
+| `optimal_approach{description, complexity}` | Authored ground truth for the approach node |
+| `hint_ladder[{level, text}]` | Ordered vague → specific, delivered verbatim |
+| `common_loopholes[{id, description, related_test_case_id}]` | Drives comprehension remediation |
+| `comprehension_rubric.key_points` | What the user should mention when explaining the problem back |
 
-All Groq calls are **server-side only** (API key never reaches the client):
-- `POST /api/session/start` — creates session, returns intro narration.
-- `POST /api/session/[id]/turn` — main turn endpoint: takes transcribed user text + phase, runs the phase's grader prompt via Groq JSON-mode, applies the transition function, returns `{newPhase, narratorText, ...}`.
-- `POST /api/audio/transcribe` — browser `MediaRecorder` blob → Groq `whisper-large-v3` → transcript text.
-- `POST /api/audio/speak` — narrator text → Groq PlayAI TTS → audio bytes.
-- `POST /api/execute` — code submission → Piston (below).
-
-Abstraction: `/lib/llm/provider.ts` (interface `LlmProvider.generateStructured<T>(prompt, schema)`), `/lib/llm/groq.ts` (implementation), `/lib/audio/stt.ts` + `/lib/audio/tts.ts` (thin Groq wrappers, not over-abstracted). Browser Web Speech API is a separate client-side fallback UI mode, not a drop-in behind the same server interface.
+Exposed read-only to the frontend via `GET /problems`, `GET /problems/{slug}` on FastAPI; the same Pydantic objects are imported directly into the LangGraph nodes for grounding — one source of truth, no duplication.
 
 ## Piston Integration
 
-**One Piston call per submission**, not per test case (Piston is a shared free instance with unpublished rate limits — minimize calls). The user's function is embedded into a per-language harness template (from the problem bank) that also embeds all test cases and prints a JSON array of per-case results to stdout. `/lib/execution/harness.ts` renders the final source (structural substitution, not naive string concat); `/lib/execution/piston.ts` POSTs `{language, version, files, run_timeout:~5000ms}` to Piston and parses `run.stdout`/`stderr`. Compile/runtime failures map to a friendly "your code didn't run: <reason>" result. On success, compute pass/fail, prioritize surfacing the first failing **edge case** with its `explanationIfFailed` — this deterministic result feeds both the FSM transition and the LLM's spoken narration (LLM explains *why*, never decides pass/fail).
+One Piston call per submission (not per test case — shared free instance, unpublished rate limits). Code arrives at the agent worker over the **LiveKit data channel** (not a REST endpoint) since the worker already holds the room's session state. `/server/execution/harness.py` renders the user's code into a per-language harness template embedding all test cases and printing one JSON result array to stdout; `/server/execution/piston.py` POSTs to Piston via `httpx` and parses `run.stdout`/`stderr`. Compile/runtime failures map to a friendly "your code didn't run: `<reason>`" result. On success, the deterministic pass/fail result (prioritizing the first failing **edge case**) feeds both the LangGraph transition and the feedback node's narration, and a structured result is also published back over the data channel so the UI's `TestResultsPanel` can render it directly (not just spoken).
 
-## Build Sequencing (voice deliberately last — highest-risk, most novel integration)
+## Landing Page
 
-1. **M0 — Scaffolding**: Next.js+TS+Tailwind init, repo layout, `.env.local` (`GROQ_API_KEY`, gitignored).
-2. **M1 — Problem bank**: author 2 problems (e.g. two-sum, sliding-window-max) against the schema; page to list/select/render statement. Zero AI involved — validates the data shape.
-3. **M2 — FSM skeleton, stubbed grading**: session store + phases + transition function driven by hardcoded canned grader responses, exercised via a plain text chat UI. Proves the state machine end-to-end before any external dependency.
-4. **M3 — Real Groq LLM grading**: swap stubs for real Groq JSON-mode calls + Zod validation + retry/fallback for comprehension and approach discussion; still text-input via textbox.
-5. **M4 — Monaco + Piston**: code editor in CODING phase, `/api/execute`, harness rendering, results parsed into FSM.
-6. **M5 — Iteration + hint gating polish**: stuck-streak gating, "make it better" loop after first pass, full manual text-only playthrough of one problem start to finish.
-7. **M6 — Voice layer**: Groq Whisper STT (mic capture/upload/transcribe) + Groq TTS (narration playback) wired into the already-proven text pipeline from M3.
-8. **M7 — Hardening**: coding-pause probing questions, Groq/Piston failure/loading states, 1-2 more problems, light styling.
+Built from `DESIGN-mistral.ai.md` — the sunset-orange/cream editorial system. One flag before building: **PP Editorial Old is a commercial font we don't have a license for.** Recommend substituting a free, similarly-toned editorial serif — **Fraunces** (Google Fonts, warm literary display character) — for hero/display type, keeping Inter and JetBrains Mono exactly as specified.
 
-## Key Files/Folders
+| Section | Component(s) used | Notes |
+|---|---|---|
+| Top nav | Standard sticky white bar per doc | Logo + links + `button-dark` "Try it" CTA |
+| Hero | `hero-band-sunset` | Headline in Fraunces (substitute for PP Editorial Old), subtitle in Inter, sunset gradient background, `button-primary` + `button-secondary` |
+| Feature row (3-up) | `card-feature` | "Understand the problem" / "Find the approach" / "Write & defend your code" — mirrors the tutoring loop |
+| Demo mockup | `code-block` + `code-block-header` | Dark IDE-style mockup showing a snippet of the hint-ladder conversation |
+| Stat row | `stat-cell` | Illustrative, e.g. "3-stage grading", "Real sandboxed execution" |
+| Closing CTA | `cta-banner-cream` | Cream panel, Fraunces headline, `button-dark` CTA |
+| Footer | `footer-region` + `footer-link` | Cream-tinted, per doc |
+| **Sunset stripe band** | `sunset-stripe-band` | **Mandatory at the very foot of the page per the design doc's brand rule — never omit** |
 
-```
-/app/page.tsx
-/app/tutor/[problemId]/page.tsx
-/app/api/session/start/route.ts
-/app/api/session/[id]/turn/route.ts
-/app/api/audio/transcribe/route.ts
-/app/api/audio/speak/route.ts
-/app/api/execute/route.ts
+Buttons stay `{rounded.md}` (8px), cards `{rounded.lg}` (12px), no pill buttons except badges — per the doc's "sober, editorial, not playful" rule.
 
-/lib/fsm/types.ts
-/lib/fsm/transitions.ts
-/lib/fsm/sessionStore.ts
-/lib/llm/provider.ts
-/lib/llm/groq.ts
-/lib/llm/schemas.ts
-/lib/llm/prompts/{comprehension,approach,probe,feedback}.ts
-/lib/audio/stt.ts
-/lib/audio/tts.ts
-/lib/execution/piston.ts
-/lib/execution/harness.ts
+## Build Sequencing
 
-/problems/schema.ts
-/problems/index.ts
-/problems/two-sum/problem.ts
-/problems/sliding-window-max/problem.ts
+Voice is still deliberately last, but note the change: M2–M6 now prove the LangGraph brain via a lightweight **local dev harness** (a plain Python script or a `/dev/turn` FastAPI endpoint that feeds text straight into the graph, bypassing LiveKit entirely) — the exact same graph code the agent worker calls in M7, just exercised without any audio infrastructure first.
 
-/components/{ProblemStatement,ChatPanel,CodeEditor,VoiceControls,TestResultsPanel}.tsx
-
-.env.local, package.json, tsconfig.json, tailwind.config.ts, next.config.js
-```
+| # | Milestone | Deliverable | Depends on |
+|---|---|---|---|
+| M0 | Scaffolding | `/web` (Next.js+TS+Tailwind, design tokens wired in) and `/server` (Python: FastAPI, LangGraph, LiveKit Agents deps) repo layout; `.env` for `GROQ_API_KEY`, LiveKit keys | — |
+| M1 | Landing page | Marketing page per the design table above | M0 |
+| M2 | Problem bank | 2 problems authored as Pydantic models, FastAPI list/detail endpoints, frontend pages render them — zero AI involved | M0 |
+| M3 | LangGraph skeleton | Graph wired with **stubbed** canned grader responses, exercised via the local dev harness — proves the graph shape before any external dependency | M2 |
+| M4 | Real Groq grading | Swap stubs for real Groq JSON-mode calls + Pydantic validation + retry/fallback; still via the dev harness | M3 |
+| M5 | Piston execution | Harness rendering + `httpx` Piston calls wired into the `EXECUTING` node, tested via the dev harness with hardcoded code strings | M4 |
+| M6 | Iteration + hint polish | Stuck-streak gating tuned, "make it better" loop, full manual text-only playthrough via the dev harness | M5 |
+| M7 | Voice layer (LiveKit) | LiveKit Cloud project, agent worker (Silero VAD + Groq Whisper STT + TTS plugin) invoking the same graph, LiveKit client SDK + Monaco data-channel wiring in the Next.js frontend | M6 |
+| M8 | Hardening | Coding-pause probes, Groq/Piston/LiveKit failure states, 1-2 more problems, styling pass | M7 |
 
 ## Risks / Open Questions
 
-- Groq PlayAI TTS free-tier availability/quality is unverified — check Groq's current model page before M6; browser `SpeechSynthesis` is the fallback.
-- Per-turn voice latency (STT → LLM → TTS, three sequential hops) could reach 3-6s+; plan a visible "thinking..." state, consider shortening narrator text later.
-- Groq free-tier rate limits — JSON-repair retries double some calls; monitor once building.
-- Piston has no documented SLA/rate limit; design for graceful "execution unavailable, try again"; self-hosting via Docker is a later escape hatch, not needed for MVP.
-- Never `eval` LLM output; Zod validation + fallback defaults handle malformed grading JSON.
-- Confirm Groq Whisper accepts the browser `MediaRecorder` default container (webm/opus) directly, or whether transcoding is needed, when M6 is implemented.
-- Exactly one language for MVP to minimize harness-authoring burden.
-
-## LLM Brain — Anti-Hallucination & Prompt Architecture
-
-**Core principle: the LLM is never the source of DSA truth.** Every fact the tutor asserts — the optimal approach, why brute force fails, each hint, each edge case, each pass/fail result — lives in the authored problem bank or comes from Piston's actual execution output. The LLM's only two jobs per turn are: (1) **judge** the user's input against that authored ground truth, and (2) **narrate** the judgment in a warm, patient tutor voice. It is never asked to "know" DSA from its training data — this is what eliminates most hallucination risk, because classic problems (two-sum, etc.) are exactly the kind of thing a model has memorized variants of, and its memorized "well-known" answer may not match our specific authored wording/constraints.
-
-**Per-phase prompt "nodes"** — each FSM phase that calls the LLM has a defined node with fixed inputs/outputs:
-
-| Node | Grounding context injected | Output schema | Content source for what's said |
-|---|---|---|---|
-| Comprehension grader | `comprehensionRubric.keyPoints`, `constraints`, user's spoken explanation | `ComprehensionGrade` | LLM judges coverage against keyPoints only |
-| Edge-case remediation | one `commonLoopholes` entry + its `relatedTestCaseId` | narration only | Loophole text is authored verbatim; LLM rephrases delivery, doesn't invent the edge case |
-| Approach grader (brute force) | `bruteForce.description`, `bruteForce.whyInsufficient`, user's spoken approach | `ApproachGrade` | "why insufficient" explanation is authored, not generated |
-| Approach grader (optimal) | `optimalApproach.description`, `optimalApproach.complexity`, user's spoken approach | `ApproachGrade` | — |
-| Hint delivery | current `hintLadder[level].text`, `stuckSignalStreak` | `StuckSignal` + narration | Hint text is pulled **verbatim** from the ladder — LLM decides *when* to reveal it and phrases the delivery, never invents new hint content |
-| Coding-pause probe | current code diff (actual lines, not paraphrase) | narration question only | Question must reference real code the user wrote |
-| Execution feedback | Piston's actual parsed result (`pass/fail`, real input/output values, matched `edgeCaseTag` + `explanationIfFailed`) | narration only | LLM explains the *why* behind a real result; never allowed to state a pass/fail it wasn't given |
-
-**Concrete anti-hallucination mechanisms:**
-1. **Explicit "don't use memorized knowledge" instruction** in every grading system prompt: *"Grade solely using the rubric/context provided below. Do not rely on your own memorized knowledge of this or similar problems — the rubric may differ from what you recall."*
-2. **Combined single call per turn** (not separate grade+narrate calls) to keep latency/rate-limit cost down — but structure the JSON schema with a `reasoning` field placed *before* the scoring/verdict fields, so the model effectively does chain-of-thought inside the object before committing to a score (field order matters in JSON-mode generation).
-3. **Authored content is quoted, not regenerated**: hints, loophole descriptions, and the "why brute force fails" explanation are always injected as literal text the LLM is told to *deliver/rephrase*, never asked to *produce from scratch*. This is the single biggest lever against DSA-fact hallucination.
-4. **Piston output is the only source of pass/fail truth**; the feedback prompt receives the actual parsed result object and is instructed never to state a test outcome not present in that object.
-5. **Bounded context per call**: instead of the full raw transcript, each prompt gets a compact rolling `sessionFacts` summary (current phase, comprehension gaps found, hints already revealed, last code version) — keeps grounding tight and prevents drift/contradiction over a long session, and keeps token usage (and Groq free-tier consumption) low.
-6. **Low-ish temperature (~0.2–0.3)** for all grading/judging calls — this is a classification-and-narration task, not creative writing; reserve higher temperature only if a separate "warmth pass" is ever split out later.
-7. **Schema validation is the hard backstop** (already in the FSM design): Zod-validate every response; one repair retry; deterministic fallback (`readyToAdvance:false`, ask user to clarify) on repeated failure. This catches structural hallucination (wrong shape) even if content hallucination (wrong judgment) slips through.
-8. **Log every grading call's (prompt, response) pair** during M3–M5 to a local file/console — this is how prompts actually get tuned; expect the hint-gating and approach-grading prompts to need iteration once real user phrasing is observed.
-
-**Trade-off flagged, not yet decided**: combining grading + narration in one call (point 2) is the recommended default for latency/cost, but if grading quality suffers from blending "strict judge" and "warm tutor voice" in one prompt, the escape hatch is splitting into two sequential calls (a pure-JSON grader with temperature ~0.2, then a narrator call that only rephrases the already-decided verdict). Worth revisiting during M3 once real grading output is observed — not a decision to pre-solve before seeing it fail.
+- **TTS provider inside LiveKit is unresolved** — Groq's PlayAI TTS may not have a ready LiveKit plugin; since audio must stream server-side into the room, the fallback isn't "browser TTS" anymore, it's "pick another LiveKit-supported provider's free tier" (e.g. Cartesia, ElevenLabs) if Groq isn't available there. Confirm at the start of M7.
+- **LiveKit Cloud free-tier limits** — confirm current bundled minutes before relying on it for repeated testing.
+- Groq free-tier rate limits; JSON-repair retries double some calls.
+- Piston has no documented SLA; design a graceful "execution unavailable, try again" state.
+- Never `eval` LLM output; Pydantic + fallback defaults handle malformed grading JSON.
+- PP Editorial Old license — using Fraunces as the substitute unless a license is obtained.
+- Exactly one language for MVP to limit harness-authoring burden.
+- Data-channel message design (code submission, structured state/result sync to the UI) needs a small explicit schema of its own — define alongside the LangGraph node schemas in M7, not improvised ad hoc.
 
 ## Verification
 
-- **M1**: run dev server, navigate to problem list/detail pages, confirm statement/constraints/test cases render correctly from the schema-validated problem files.
-- **M2**: play through the full FSM via the text chat UI with canned responses, confirming every phase transition fires correctly with no Groq/Piston calls yet.
-- **M3**: same playthrough with real Groq calls; manually try a few "understood well" and "confused" style answers to confirm grading and remediation/hint paths both trigger appropriately.
-- **M4**: submit correct, incorrect, and edge-case-failing code for a seeded problem; confirm Piston results map to the right pass/fail + edge-case narration.
-- **M5**: full manual start-to-finish text-only playthrough of one problem, confirming hint-ladder pacing (no premature advancement) and the "make it better" iteration loop.
-- **M6**: full voice playthrough — record an answer, confirm transcription accuracy on DSA vocabulary, confirm TTS playback quality/latency are acceptable.
+| Milestone | How to verify |
+|---|---|
+| M1 | Load the landing page, confirm it visually matches the design table incl. the sunset stripe footer |
+| M2 | Navigate problem list/detail pages, confirm schema-validated content renders |
+| M3 | Run the dev harness through the full graph with canned responses — every transition fires with no external calls |
+| M4 | Same playthrough with real Groq calls; try "understood well" and "confused" phrasings to confirm grading/remediation paths |
+| M5 | Feed correct/incorrect/edge-case-failing code strings through the dev harness; confirm Piston results map to the right narration |
+| M6 | Full manual start-to-finish text-only playthrough via the dev harness; confirm no premature hint advancement |
+| M7 | Full voice playthrough via LiveKit; confirm interruption works, transcription is accurate on DSA vocabulary, code submission over the data channel triggers execution, TTS latency/quality acceptable |
