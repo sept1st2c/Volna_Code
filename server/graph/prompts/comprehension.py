@@ -10,7 +10,8 @@ Respond with ONLY a JSON object with exactly these keys, in this order:
   "score": <integer 0-100>,
   "covered_points": ["<key points from the list below that the student's explanation actually covered>"],
   "gaps": ["<key points from the list below that were missed or gotten wrong>"],
-  "ready_to_advance": <true if score is high enough and no critical gaps remain, else false>
+  "ready_to_advance": <true if score is high enough and no critical gaps remain, else false>,
+  "feedback_to_user": "<warm, spoken-style feedback in second person: affirm what they got right, then name what to reconsider if there are gaps. Do not introduce any DSA fact, edge case, or hint not already present in the key points or constraints given to you.>"
 }
 
 Do not include any text outside the JSON object."""
