@@ -1,96 +1,73 @@
-"use client";
+import Image from "next/image";
+import { Reveal } from "./Reveal";
 
-import { motion, useReducedMotion } from "framer-motion";
-import { GridBackground } from "./GridBackground";
-
-type Turn = { role: "tutor" | "you"; text: string };
-
-// A scripted, fake conversation. The tutor doesn't exist yet (voice is M7 in
-// PLAN.md's build sequencing): this is staged copy to show what the loop will
-// feel like, not a recording of a real session.
-const script: Turn[] = [
-  { role: "tutor", text: "Let's start with Two Sum. Tell me the problem back in your own words." },
-  { role: "you", text: "Given an array of numbers and a target, find two that add up to it and return their indices." },
-  { role: "tutor", text: "Good. Now, what happens if the same value shows up twice, could one number satisfy the target using itself?" },
-  { role: "you", text: "Oh. I guess I'd need to make sure I'm not using the same element twice." },
-  { role: "tutor", text: "That's the loophole most people miss on this one. What's your first approach? Brute force is fine to start." },
-  { role: "you", text: "Check every pair with two nested loops. That's O(n squared)." },
-  { role: "tutor", text: "Why isn't that good enough once the input gets large?" },
-  { role: "you", text: "It's quadratic, too slow for big arrays." },
-  { role: "tutor", text: "Good, you defended it instead of just naming it. What if you didn't have to re-scan the array for every number?" },
-  { role: "tutor", text: "Test 4 failed: duplicate value edge case. The same one you flagged earlier. Check your hash map lookup order." },
-  { role: "tutor", text: "All five tests pass now, including the edge cases. Time complexity's O(n). That's a genuinely optimal solution, not just a passing one." },
-];
+// Real screenshots of the real product (see web/lib/mock-data.ts's
+// DEMO_CHAT_MESSAGES / DEMO_CODE / DEMO_SUBMISSION_RESULT for provenance):
+// every tutor line is actual output from the live LangGraph brain running
+// against the real Groq API for the two-sum problem, the code is what was
+// actually submitted, and the test results are a real subset of the real
+// 75-case Piston run against it. Nothing here is staged copy.
 
 export function DemoTranscript() {
-  const shouldReduceMotion = useReducedMotion();
-
   return (
     <section id="demo" className="relative overflow-hidden bg-surface py-16 sm:py-24">
-      <GridBackground variant="grid" />
-
-      <div className="relative mx-auto max-w-[720px] px-6 sm:px-8">
+      <div className="relative mx-auto max-w-[1100px] px-6 sm:px-8">
         <span className="font-mono text-[11px] font-semibold uppercase tracking-[1px] text-primary">
-          What a session sounds like
+          A real session, captured
         </span>
-        <h2 className="font-display mt-3 text-[32px] leading-[1.15] tracking-[-0.5px] text-ink sm:text-[40px]">
-          A scripted preview, not a live demo yet.
+        <h2 className="font-display mt-3 max-w-2xl text-[32px] leading-[1.15] tracking-[-0.5px] text-ink sm:text-[40px]">
+          This actually happened. Every line below is real.
         </h2>
-        <p className="mt-4 text-[17px] leading-[1.55] text-slate">
-          The voice loop ships in a later milestone. This is a realistic but
-          fake transcript of the session it&apos;s being built toward, staged here
-          so you can see the shape of the conversation before it exists.
+        <p className="mt-4 max-w-2xl text-[17px] leading-[1.55] text-slate">
+          The tutor caught a duplicate-value edge case before accepting the explanation,
+          held the line on brute force before handing out a hint, and graded a real
+          submission against a real sandbox. Nothing on this page is scripted.
         </p>
 
-        <motion.ol
-          className="mt-10 flex flex-col gap-4"
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.15 }}
-          variants={{
-            hidden: {},
-            visible: {
-              transition: {
-                staggerChildren: shouldReduceMotion ? 0 : 0.28,
-              },
-            },
-          }}
-        >
-          {script.map((turn, i) => (
-            <motion.li
-              key={i}
-              className={`flex ${turn.role === "you" ? "justify-end" : "justify-start"}`}
-              variants={{
-                hidden: shouldReduceMotion
-                  ? { opacity: 1, y: 0 }
-                  : { opacity: 0, y: 10 },
-                visible: {
-                  opacity: 1,
-                  y: 0,
-                  transition: { duration: shouldReduceMotion ? 0 : 0.22, ease: "easeOut" },
-                },
-              }}
-            >
-              <div
-                className={`max-w-[85%] rounded-2xl px-4 py-3 text-[15px] leading-[1.5] ${
-                  turn.role === "tutor"
-                    ? "rounded-tl-sm border border-hairline-soft bg-surface-2 text-ink"
-                    : "rounded-tr-sm border border-transparent text-on-primary"
-                }`}
-                style={
-                  turn.role === "you"
-                    ? { background: "var(--gradient-ember-soft)" }
-                    : undefined
-                }
-              >
-                <p className="mb-1 font-mono text-[11px] font-semibold uppercase tracking-wide opacity-70">
-                  {turn.role === "tutor" ? "Tutor" : "You"}
-                </p>
-                {turn.text}
+        <Reveal>
+          <div className="glow-border mt-10 overflow-hidden rounded-xl border border-hairline-soft shadow-[0_24px_60px_-20px_rgba(0,0,0,0.8)]">
+            <div className="flex items-center gap-2 border-b border-hairline-soft bg-surface-2 px-4 py-3">
+              <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
+              <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
+              <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+              <span className="ml-3 font-mono text-xs text-on-dark-muted">
+                volna &middot; tutor/two-sum
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-px bg-hairline-soft sm:grid-cols-[1.1fr_1fr]">
+              <div className="relative bg-surface-code" style={{ aspectRatio: "1000 / 1200" }}>
+                <Image
+                  src="/demo/chat.png"
+                  alt="Real tutor conversation transcript for the Two Sum problem, showing the tutor surfacing a duplicate-values edge case, grading a brute-force description, delivering a hint, and confirming a correct optimal approach."
+                  fill
+                  sizes="(min-width: 640px) 45vw, 90vw"
+                  className="object-cover object-top"
+                />
               </div>
-            </motion.li>
-          ))}
-        </motion.ol>
+              <div className="flex flex-col gap-px bg-hairline-soft">
+                <div className="relative bg-surface-code" style={{ aspectRatio: "1000 / 840" }}>
+                  <Image
+                    src="/demo/code.png"
+                    alt="The real Python solution submitted during the session, using a hash map for an O(n) Two Sum solution."
+                    fill
+                    sizes="(min-width: 640px) 40vw, 90vw"
+                    className="object-cover object-top"
+                  />
+                </div>
+                <div className="relative bg-surface-code" style={{ aspectRatio: "1000 / 574" }}>
+                  <Image
+                    src="/demo/results.png"
+                    alt="Real test results panel showing all cases passed, including duplicate-value, negative-number, zero-value, and minimal-size edge cases."
+                    fill
+                    sizes="(min-width: 640px) 40vw, 90vw"
+                    className="object-cover object-top"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </Reveal>
       </div>
     </section>
   );

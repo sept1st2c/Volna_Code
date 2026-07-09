@@ -195,3 +195,90 @@ export const SAMPLE_SUBMISSION_RESULT: SubmissionResult = {
     },
   ],
 };
+
+/**
+ * A REAL captured session: every tutor line below is the actual output of
+ * `graph.build.get_graph()` running against the live Groq API for the
+ * `two-sum` problem (see the landing page's demo section). The "you" lines
+ * are the real spoken-turn inputs that were fed in to produce them. Nothing
+ * here is written copy -- it's a transcript, curated for length by picking
+ * real turns from a real run rather than authoring new lines.
+ */
+export const DEMO_CHAT_MESSAGES: ChatMessage[] = [
+  {
+    id: "demo-1",
+    role: "tutor",
+    text: "Let's work through Two Sum. You're given an array of integers nums and an integer target. Return the indices of the two numbers in nums that add up to target. You may assume each input has exactly one valid answer, and you cannot use the same element twice. Go ahead and explain the problem back to me in your own words.",
+  },
+  {
+    id: "demo-2",
+    role: "user",
+    text: "You get an array of numbers and a target. Find two of them that add up to the target and return their indices.",
+  },
+  {
+    id: "demo-3",
+    role: "tutor",
+    text: "Now, let's think about this together: what if there are duplicate values in the array requiring the correct pair of distinct indices? How would that impact our approach to finding the solution?",
+  },
+  {
+    id: "demo-4",
+    role: "user",
+    text: "Right, I need to return the two distinct indices, not the values, and I cannot use the same element twice. The array can contain duplicate values, negative numbers, and zero, and exactly one valid pair is guaranteed.",
+  },
+  {
+    id: "demo-5",
+    role: "tutor",
+    text: "You've done a great job explaining the problem. You've correctly identified the need to return distinct indices, the importance of the sum being exactly equal to the target, and the uniqueness of the solution. Let's talk through an approach.",
+  },
+  {
+    id: "demo-6",
+    role: "user",
+    text: "Brute force: check every pair with two nested loops, compare the sum to target. That's O(n squared) time, O(1) space.",
+  },
+  {
+    id: "demo-7",
+    role: "tutor",
+    text: "Here's something to think about: what information would you need to instantly know if you've already seen the right number before?",
+  },
+  {
+    id: "demo-8",
+    role: "user",
+    text: "Use a hash map: for each number check if target minus number is already a key, if so return indices, else store number to index in the map. O(n) time, O(n) space.",
+  },
+  {
+    id: "demo-9",
+    role: "tutor",
+    text: "Your description of the optimal approach is spot on. You've clearly grasped how to use a hash map to efficiently solve Two Sum.",
+  },
+  {
+    id: "demo-10",
+    role: "tutor",
+    text: "Every single one of the 75 test cases for the Two Sum problem executed successfully. All of them produced the correct results.",
+  },
+];
+
+/** The real code that produced the real, all-passing result below. */
+export const DEMO_CODE = `def twoSum(nums, target):
+    seen = {}
+    for i, n in enumerate(nums):
+        complement = target - n
+        if complement in seen:
+            return [seen[complement], i]
+        seen[n] = i
+    return []
+`;
+
+/** A real subset of the actual 75-case Piston run against DEMO_CODE above.
+ * submittedAt is the real, fixed timestamp of that run -- not "now", since
+ * this is a captured session, not a live one. */
+export const DEMO_SUBMISSION_RESULT: SubmissionResult = {
+  submittedAt: "2026-07-09T19:51:22.000Z",
+  allPassed: true,
+  cases: [
+    { id: "basic", label: "basic", status: "pass" },
+    { id: "duplicate_value", label: "duplicate_values", status: "pass", isEdgeCase: true },
+    { id: "negative_and_zero", label: "negative_numbers", status: "pass", isEdgeCase: true },
+    { id: "zero_values", label: "zero_values", status: "pass", isEdgeCase: true },
+    { id: "minimal_array", label: "minimal_size", status: "pass", isEdgeCase: true },
+  ],
+};
