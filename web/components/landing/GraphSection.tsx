@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useInView, useReducedMotion } from "framer-motion";
 import { GridBackground } from "./GridBackground";
 
@@ -16,18 +16,34 @@ type NodeSpec = {
   variant: "spine" | "side" | "terminal";
 };
 
+type Pt = { x: number; y: number };
+
+type EdgeShape = "spine" | "arc-up" | "arc-down" | "self" | "back";
+
 type EdgeSpec = {
   id: string;
-  d: string;
+  from: string;
+  to: string;
+  shape: EdgeShape;
   label?: string;
-  labelX?: number;
-  labelY?: number;
-  // Loop/branch edges get a cooler treatment than the main spine.
+  // Loop/branch edges get the cool signal treatment rather than the ember spine.
   branch?: boolean;
+  // Per-edge tuning for label placement and the long back curves.
+  labelDx?: number;
+  labelDy?: number;
+  spread?: number;
+  startDy?: number;
 };
 
 const W = 200;
 const H = 56;
+const HALF_W = W / 2;
+const HALF_H = H / 2;
+const VB_W = 640;
+const VB_H = 1220;
+
+const clamp = (v: number, min: number, max: number) =>
+  Math.min(Math.max(v, min), max);
 
 // Node layout mirrors the Core State Machine mermaid diagram in PLAN.md
 // verbatim: INTRO through COMPLETE, including the comprehension loop
@@ -48,65 +64,264 @@ const nodes: NodeSpec[] = [
 ];
 
 const edges: EdgeSpec[] = [
-  { id: "e-intro-check", d: "M200,68 L200,152" },
-  { id: "e-check-approach", d: "M200,208 L200,292", label: "ready to advance", labelX: 214, labelY: 250 },
-  { id: "e-approach-brute", d: "M200,348 L200,432", label: "brute force described", labelX: 214, labelY: 390 },
-  { id: "e-brute-hint", d: "M200,488 L200,572" },
-  { id: "e-hint-coding", d: "M200,628 L200,712", label: "optimal approach found", labelX: 214, labelY: 670 },
-  { id: "e-coding-exec", d: "M200,768 L200,852", label: "submit via data channel", labelX: 214, labelY: 810 },
-  { id: "e-exec-feedback", d: "M200,908 L200,992" },
-  { id: "e-feedback-complete", d: "M200,1048 L200,1132", label: "all pass + good complexity", labelX: 214, labelY: 1090 },
-  { id: "e-check-remediation", d: "M300,166 Q350,146 400,166", label: "gaps found", labelX: 350, labelY: 138, branch: true },
-  { id: "e-remediation-check", d: "M400,196 Q350,216 300,196", branch: true },
-  { id: "e-hint-self", d: "M300,588 C372,552 372,648 300,612", label: "stuck 2+ turns", labelX: 388, labelY: 600, branch: true },
-  { id: "e-feedback-iteration", d: "M300,1010 Q350,998 400,1012", label: "tests failed / can improve", labelX: 350, labelY: 985, branch: true },
-  { id: "e-iteration-coding", d: "M420,996 C 500,880 480,760 300,744", branch: true },
-  { id: "e-iteration-hint", d: "M420,1044 C 580,900 560,640 300,610", label: "fundamentally stuck again", labelX: 470, labelY: 800, branch: true },
+  { id: "e-intro-check", from: "INTRO", to: "COMPREHENSION_CHECK", shape: "spine" },
+  { id: "e-check-approach", from: "COMPREHENSION_CHECK", to: "APPROACH_DISCUSSION", shape: "spine", label: "ready to advance" },
+  { id: "e-approach-brute", from: "APPROACH_DISCUSSION", to: "BRUTE_FORCE_ANALYSIS", shape: "spine", label: "brute force described" },
+  { id: "e-brute-hint", from: "BRUTE_FORCE_ANALYSIS", to: "HINT_LADDER", shape: "spine" },
+  { id: "e-hint-coding", from: "HINT_LADDER", to: "CODING", shape: "spine", label: "optimal approach found" },
+  { id: "e-coding-exec", from: "CODING", to: "EXECUTING", shape: "spine", label: "submit via data channel" },
+  { id: "e-exec-feedback", from: "EXECUTING", to: "FEEDBACK", shape: "spine" },
+  { id: "e-feedback-complete", from: "FEEDBACK", to: "COMPLETE", shape: "spine", label: "all pass + good complexity" },
+  { id: "e-check-remediation", from: "COMPREHENSION_CHECK", to: "COMPREHENSION_REMEDIATION", shape: "arc-up", branch: true, label: "gaps found", labelDy: -14 },
+  { id: "e-remediation-check", from: "COMPREHENSION_REMEDIATION", to: "COMPREHENSION_CHECK", shape: "arc-down", branch: true },
+  { id: "e-hint-self", from: "HINT_LADDER", to: "HINT_LADDER", shape: "self", branch: true, label: "stuck 2+ turns" },
+  { id: "e-feedback-iteration", from: "FEEDBACK", to: "ITERATION", shape: "arc-up", branch: true, label: "tests failed / can improve", labelDy: -16 },
+  { id: "e-iteration-coding", from: "ITERATION", to: "CODING", shape: "back", branch: true, spread: 120, startDy: -14 },
+  { id: "e-iteration-hint", from: "ITERATION", to: "HINT_LADDER", shape: "back", branch: true, spread: 152, startDy: 14, label: "fundamentally stuck again", labelDx: 116, labelDy: -8 },
 ];
 
-const VIEW_W = 640;
+const VIEW_W = VB_W;
 const TIP_W = 250;
 const TIP_H = 128;
 
-function nodeFill(variant: NodeSpec["variant"], hovered: boolean) {
-  if (variant === "terminal") return "url(#grad-terminal)";
-  if (variant === "side") return hovered ? "url(#grad-side-hot)" : "url(#grad-side)";
-  return hovered ? "url(#grad-spine-hot)" : "url(#grad-spine)";
+type BuiltEdge = {
+  d: string;
+  lx: number;
+  ly: number;
+  anchor: "start" | "middle";
+};
+
+// Every edge is derived from live node centres so the paths follow a node the
+// moment it is dragged. Curves are smooth cubic/quadratic beziers with soft
+// control handles, so nothing reads as a hard mechanical elbow.
+function buildEdge(edge: EdgeSpec, pos: Record<string, Pt>): BuiltEdge {
+  const a = pos[edge.from];
+  const b = pos[edge.to];
+
+  switch (edge.shape) {
+    case "spine": {
+      const sy = a.y + HALF_H;
+      const ey = b.y - HALF_H;
+      const k = Math.max(26, Math.abs(ey - sy) * 0.42);
+      return {
+        d: `M ${a.x},${sy} C ${a.x},${sy + k} ${b.x},${ey - k} ${b.x},${ey}`,
+        lx: (a.x + b.x) / 2 + 14,
+        ly: (sy + ey) / 2 + 4,
+        anchor: "start",
+      };
+    }
+    case "arc-up": {
+      const nudge = 14;
+      const bow = 26;
+      const s = { x: a.x + HALF_W, y: a.y - nudge };
+      const e = { x: b.x - HALF_W, y: b.y - nudge };
+      const mx = (s.x + e.x) / 2;
+      const my = (s.y + e.y) / 2 - bow;
+      return {
+        d: `M ${s.x},${s.y} Q ${mx},${my} ${e.x},${e.y}`,
+        lx: mx + (edge.labelDx ?? 0),
+        ly: my + (edge.labelDy ?? 0),
+        anchor: "middle",
+      };
+    }
+    case "arc-down": {
+      const nudge = 14;
+      const bow = 26;
+      const s = { x: a.x - HALF_W, y: a.y + nudge };
+      const e = { x: b.x + HALF_W, y: b.y + nudge };
+      const mx = (s.x + e.x) / 2;
+      const my = (s.y + e.y) / 2 + bow;
+      return {
+        d: `M ${s.x},${s.y} Q ${mx},${my} ${e.x},${e.y}`,
+        lx: mx,
+        ly: my,
+        anchor: "middle",
+      };
+    }
+    case "self": {
+      const x = a.x + HALF_W;
+      return {
+        d: `M ${x},${a.y - 12} C ${x + 76},${a.y - 44} ${x + 76},${a.y + 44} ${x},${a.y + 12}`,
+        lx: x + 82,
+        ly: a.y + 4,
+        anchor: "start",
+      };
+    }
+    case "back": {
+      const spread = edge.spread ?? 120;
+      const sdy = edge.startDy ?? 0;
+      const s = { x: a.x - HALF_W, y: a.y + sdy };
+      const e = { x: b.x + HALF_W, y: b.y };
+      const c1 = { x: a.x + spread, y: a.y + sdy };
+      const c2 = { x: b.x + HALF_W + spread, y: b.y };
+      return {
+        d: `M ${s.x},${s.y} C ${c1.x},${c1.y} ${c2.x},${c2.y} ${e.x},${e.y}`,
+        lx: (s.x + e.x) / 2 + (edge.labelDx ?? 0),
+        ly: (s.y + e.y) / 2 + (edge.labelDy ?? 0),
+        anchor: "middle",
+      };
+    }
+  }
 }
 
-function nodeStroke(variant: NodeSpec["variant"], hovered: boolean) {
-  if (variant === "terminal") return hovered ? "#ffcf7a" : "rgba(255,138,42,0.7)";
-  if (variant === "side") return hovered ? "#4bb8ff" : "rgba(75,184,255,0.4)";
-  return hovered ? "rgba(255,138,42,0.8)" : "rgba(255,255,255,0.12)";
+function baseFill(variant: NodeSpec["variant"]) {
+  if (variant === "terminal") return "url(#grad-terminal)";
+  if (variant === "side") return "url(#grad-side)";
+  return "url(#grad-spine)";
+}
+
+function hotFill(variant: NodeSpec["variant"]) {
+  if (variant === "terminal") return "url(#grad-terminal-hot)";
+  if (variant === "side") return "url(#grad-side-hot)";
+  return "url(#grad-spine-hot)";
+}
+
+function nodeStroke(variant: NodeSpec["variant"], hot: boolean) {
+  if (variant === "terminal") return hot ? "#ffcf7a" : "rgba(255,138,42,0.7)";
+  if (variant === "side") return hot ? "#4bb8ff" : "rgba(75,184,255,0.4)";
+  return hot ? "rgba(255,138,42,0.85)" : "rgba(255,255,255,0.12)";
 }
 
 export function GraphSection() {
   const shouldReduceMotion = useReducedMotion();
   const svgRef = useRef<SVGSVGElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
   const inView = useInView(svgRef, { once: true, amount: 0.15 });
   const [hovered, setHovered] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [positions, setPositions] = useState<Record<string, Pt>>(() =>
+    Object.fromEntries(nodes.map((n) => [n.id, { x: n.x, y: n.y }])),
+  );
   const active = inView && !shouldReduceMotion;
 
-  const hoveredNode = nodes.find((n) => n.id === hovered) ?? null;
+  // --- Drag state (kept in refs so pointer moves never re-render on their own) ---
+  const dragRef = useRef<{ id: string; offx: number; offy: number } | null>(null);
+  const dragFrame = useRef<number | null>(null);
+  const dragPending = useRef<Pt | null>(null);
+
+  // --- Cursor-reactive background spotlight (CSS vars only, no React state) ---
+  const spotFrame = useRef<number | null>(null);
+  const spotPending = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (dragFrame.current != null) cancelAnimationFrame(dragFrame.current);
+      if (spotFrame.current != null) cancelAnimationFrame(spotFrame.current);
+    };
+  }, []);
+
+  function clientToSvg(clientX: number, clientY: number): Pt | null {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    const p = pt.matrixTransform(ctm.inverse());
+    return { x: p.x, y: p.y };
+  }
+
+  function startDrag(e: React.PointerEvent<SVGGElement>, id: string) {
+    const p = clientToSvg(e.clientX, e.clientY);
+    if (!p) return;
+    const c = positions[id];
+    dragRef.current = { id, offx: p.x - c.x, offy: p.y - c.y };
+    setDragging(id);
+    setHovered(id);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+  }
+
+  function moveDrag(e: React.PointerEvent<SVGGElement>) {
+    if (!dragRef.current) return;
+    const p = clientToSvg(e.clientX, e.clientY);
+    if (!p) return;
+    dragPending.current = p;
+    // Coalesce to at most one position update per animation frame so a fast
+    // pointer never triggers more setState calls than the display can paint.
+    if (dragFrame.current == null) {
+      dragFrame.current = requestAnimationFrame(() => {
+        dragFrame.current = null;
+        const drag = dragRef.current;
+        const pt = dragPending.current;
+        if (!drag || !pt) return;
+        const nx = clamp(pt.x - drag.offx, HALF_W, VB_W - HALF_W);
+        const ny = clamp(pt.y - drag.offy, HALF_H, VB_H - HALF_H);
+        setPositions((prev) => {
+          const cur = prev[drag.id];
+          if (cur.x === nx && cur.y === ny) return prev;
+          return { ...prev, [drag.id]: { x: nx, y: ny } };
+        });
+      });
+    }
+  }
+
+  function endDrag(e: React.PointerEvent<SVGGElement>) {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    setDragging(null);
+    if (dragFrame.current != null) {
+      cancelAnimationFrame(dragFrame.current);
+      dragFrame.current = null;
+    }
+    try {
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+    } catch {
+      /* pointer already released */
+    }
+  }
+
+  function moveSpotlight(e: React.MouseEvent<HTMLElement>) {
+    spotPending.current = { x: e.clientX, y: e.clientY };
+    if (spotFrame.current == null) {
+      spotFrame.current = requestAnimationFrame(() => {
+        spotFrame.current = null;
+        const el = sectionRef.current;
+        const pt = spotPending.current;
+        if (!el || !pt) return;
+        const r = el.getBoundingClientRect();
+        el.style.setProperty("--gx", `${pt.x - r.left}px`);
+        el.style.setProperty("--gy", `${pt.y - r.top}px`);
+      });
+    }
+  }
+
+  const hoveredNode = hovered ? nodes.find((n) => n.id === hovered) ?? null : null;
+  const hoveredPos = hoveredNode ? positions[hoveredNode.id] : null;
 
   // Clamp the detail tooltip so it stays inside the viewBox, and flip it above
   // the node when the node sits near the bottom of the diagram.
   let tipX = 0;
   let tipY = 0;
-  if (hoveredNode) {
-    tipX = Math.min(Math.max(hoveredNode.x - TIP_W / 2, 12), VIEW_W - 12 - TIP_W);
+  if (hoveredNode && hoveredPos) {
+    tipX = Math.min(Math.max(hoveredPos.x - TIP_W / 2, 12), VIEW_W - 12 - TIP_W);
     tipY =
-      hoveredNode.y > 980
-        ? hoveredNode.y - H / 2 - TIP_H - 12
-        : hoveredNode.y + H / 2 + 12;
+      hoveredPos.y > 980
+        ? hoveredPos.y - H / 2 - TIP_H - 12
+        : hoveredPos.y + H / 2 + 12;
   }
 
   return (
     <section
+      ref={sectionRef}
       id="how-it-thinks"
-      className="relative overflow-hidden bg-surface py-16 sm:py-24"
+      onMouseMove={moveSpotlight}
+      className="group relative overflow-hidden bg-surface py-16 sm:py-24"
     >
       <GridBackground variant="dots" aurora />
+
+      {/* Cursor-reactive ember spotlight scoped to this section. It only moves
+          with the pointer (no ambient loop), so it needs no reduced-motion
+          gate; opacity is driven purely by CSS hover. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+        style={{
+          background:
+            "radial-gradient(560px circle at var(--gx, 50%) var(--gy, 30%), rgba(255,138,42,0.10), rgba(75,184,255,0.05) 40%, transparent 66%)",
+        }}
+      />
 
       <div className="relative mx-auto max-w-[1280px] px-6 sm:px-8">
         <span className="inline-flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[1px] text-primary">
@@ -121,16 +336,17 @@ export function GraphSection() {
           This is the actual LangGraph running the tutoring session: every phase
           is a node, every transition is a conditional edge reading structured
           output, and the LLM never chooses its own next step. Hover any node to
-          see what it really does. Scroll to watch the graph come alive.
+          see what it really does, drag one to rearrange the graph, and scroll to
+          watch it come alive.
         </p>
 
         <div className="mt-12 overflow-x-auto">
           <svg
             ref={svgRef}
             viewBox="0 0 640 1220"
-            className="mx-auto w-full max-w-[680px]"
+            className="mx-auto w-full max-w-[680px] touch-none select-none"
             role="img"
-            aria-label="LangGraph state machine diagram from INTRO to COMPLETE, including the comprehension and hint/coding/execution loops"
+            aria-label="Interactive LangGraph state machine diagram from INTRO to COMPLETE, including the comprehension and hint/coding/execution loops. Nodes can be dragged."
           >
             <defs>
               <linearGradient id="grad-spine" x1="0" y1="0" x2="1" y2="1">
@@ -153,6 +369,10 @@ export function GraphSection() {
                 <stop offset="0%" stopColor="#fa520f" />
                 <stop offset="100%" stopColor="#ff8a2a" />
               </linearGradient>
+              <linearGradient id="grad-terminal-hot" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#ff7a1f" />
+                <stop offset="100%" stopColor="#ffb45a" />
+              </linearGradient>
               <linearGradient id="grad-edge" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#ff8a2a" />
                 <stop offset="100%" stopColor="#ffb03e" />
@@ -161,6 +381,17 @@ export function GraphSection() {
                 <stop offset="0%" stopColor="#2fd6c3" />
                 <stop offset="100%" stopColor="#4bb8ff" />
               </linearGradient>
+              {/* Soft-edged travelling signal dots (no hard circle rim). */}
+              <radialGradient id="part-ember" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#ffe0b0" />
+                <stop offset="45%" stopColor="#ffb03e" />
+                <stop offset="100%" stopColor="#ffb03e" stopOpacity="0" />
+              </radialGradient>
+              <radialGradient id="part-signal" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#c7f0ff" />
+                <stop offset="45%" stopColor="#4bb8ff" />
+                <stop offset="100%" stopColor="#4bb8ff" stopOpacity="0" />
+              </radialGradient>
               <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
                 <feGaussianBlur stdDeviation="6" result="blur" />
                 <feMerge>
@@ -170,65 +401,88 @@ export function GraphSection() {
               </filter>
             </defs>
 
-            {/* Edges: a faint base rail, an animated flowing overlay, and a
-                traveling signal particle when the graph is in view. */}
+            {/* Edges: a faint base rail, a smooth colour rail that brightens when
+                a connected node is hovered, and a soft signal dot that fades in
+                and out as it flows (so it never pops at the endpoints). */}
             {edges.map((edge, i) => {
+              const built = buildEdge(edge, positions);
               const stroke = edge.branch ? "url(#grad-branch)" : "url(#grad-edge)";
+              const connected =
+                hovered != null && (edge.from === hovered || edge.to === hovered);
+              const dimmed = hovered != null && !connected;
+              const dur = 2.8 + (i % 3) * 0.5;
+              const begin = i * 0.2;
               return (
-                <g key={edge.id}>
+                <g
+                  key={edge.id}
+                  style={{
+                    opacity: dimmed ? 0.2 : 1,
+                    transition: "opacity 200ms ease",
+                  }}
+                >
                   <path
                     id={edge.id}
-                    d={edge.d}
+                    d={built.d}
                     fill="none"
-                    stroke="rgba(255,255,255,0.09)"
-                    strokeWidth={2}
-                  />
-                  <motion.path
-                    d={edge.d}
-                    fill="none"
-                    stroke={stroke}
+                    stroke="rgba(255,255,255,0.08)"
                     strokeWidth={2}
                     strokeLinecap="round"
-                    className={active ? "edge-flow" : undefined}
-                    strokeDasharray="5 23"
+                  />
+                  <motion.path
+                    d={built.d}
+                    fill="none"
+                    stroke={stroke}
+                    strokeLinecap="round"
+                    style={{
+                      strokeWidth: connected ? 2.75 : 2,
+                      transition:
+                        "opacity 200ms ease, stroke-width 200ms ease",
+                    }}
                     initial={
                       shouldReduceMotion
-                        ? { pathLength: 1, opacity: 0.9 }
+                        ? { pathLength: 1, opacity: connected ? 1 : 0.55 }
                         : { pathLength: 0, opacity: 0 }
                     }
                     animate={
                       active
-                        ? { pathLength: 1, opacity: 0.95 }
+                        ? { pathLength: 1, opacity: connected ? 1 : 0.55 }
                         : shouldReduceMotion
-                          ? { pathLength: 1, opacity: 0.9 }
+                          ? { pathLength: 1, opacity: connected ? 1 : 0.55 }
                           : { pathLength: 0, opacity: 0 }
                     }
                     transition={{
-                      duration: shouldReduceMotion ? 0 : 0.5,
-                      delay: shouldReduceMotion ? 0 : i * 0.1,
-                      ease: "easeInOut",
+                      pathLength: {
+                        duration: shouldReduceMotion ? 0 : 0.7,
+                        delay: shouldReduceMotion ? 0 : i * 0.08,
+                        ease: [0.22, 1, 0.36, 1],
+                      },
+                      opacity: { duration: 0.2 },
                     }}
                   />
                   {active ? (
-                    <circle
-                      r={3}
-                      fill={edge.branch ? "#4bb8ff" : "#ffb03e"}
-                      opacity={0.9}
-                    >
+                    <circle r={4.5} fill={edge.branch ? "url(#part-signal)" : "url(#part-ember)"}>
                       <animateMotion
-                        dur={`${2.6 + (i % 4) * 0.5}s`}
-                        begin={`${i * 0.18}s`}
+                        dur={`${dur}s`}
+                        begin={`${begin}s`}
                         repeatCount="indefinite"
-                        rotate="auto"
                       >
                         <mpath href={`#${edge.id}`} />
                       </animateMotion>
+                      <animate
+                        attributeName="opacity"
+                        dur={`${dur}s`}
+                        begin={`${begin}s`}
+                        repeatCount="indefinite"
+                        values="0;1;1;0"
+                        keyTimes="0;0.12;0.85;1"
+                      />
                     </circle>
                   ) : null}
                   {edge.label ? (
                     <motion.text
-                      x={edge.labelX}
-                      y={edge.labelY}
+                      x={built.lx}
+                      y={built.ly}
+                      textAnchor={built.anchor}
                       fontSize="11"
                       fill="var(--color-steel)"
                       fontFamily="var(--font-sans)"
@@ -236,7 +490,7 @@ export function GraphSection() {
                       animate={active || shouldReduceMotion ? { opacity: 1 } : { opacity: 0 }}
                       transition={{
                         duration: shouldReduceMotion ? 0 : 0.25,
-                        delay: shouldReduceMotion ? 0 : i * 0.1 + 0.3,
+                        delay: shouldReduceMotion ? 0 : i * 0.08 + 0.3,
                       }}
                     >
                       {edge.label}
@@ -246,20 +500,31 @@ export function GraphSection() {
               );
             })}
 
-            {/* Nodes: staggered reveal, glow + scale on hover, keyboard focus. */}
+            {/* Nodes: staggered reveal, glow + scale on hover, draggable. */}
             {nodes.map((node, i) => {
+              const p = positions[node.id];
               const isHovered = hovered === node.id;
+              const isDragging = dragging === node.id;
+              const hot = isHovered || isDragging;
               return (
                 <motion.g
                   key={node.id}
                   tabIndex={0}
                   role="button"
                   aria-label={`${node.label}: ${node.kind}. ${node.caption}`}
+                  onPointerDown={(e) => startDrag(e, node.id)}
+                  onPointerMove={moveDrag}
+                  onPointerUp={endDrag}
+                  onPointerCancel={endDrag}
                   onMouseEnter={() => setHovered(node.id)}
-                  onMouseLeave={() => setHovered((h) => (h === node.id ? null : h))}
+                  onMouseLeave={() =>
+                    setHovered((h) =>
+                      dragRef.current ? h : h === node.id ? null : h,
+                    )
+                  }
                   onFocus={() => setHovered(node.id)}
                   onBlur={() => setHovered((h) => (h === node.id ? null : h))}
-                  className="cursor-pointer outline-none"
+                  className={`outline-none ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
                   initial={
                     shouldReduceMotion ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.92 }
                   }
@@ -270,33 +535,52 @@ export function GraphSection() {
                         ? { opacity: 1, scale: 1 }
                         : { opacity: 0, scale: 0.92 }
                   }
-                  whileHover={shouldReduceMotion ? undefined : { scale: 1.04 }}
+                  whileHover={shouldReduceMotion ? undefined : { scale: 1.05 }}
                   transition={{
                     duration: shouldReduceMotion ? 0 : 0.35,
-                    delay: shouldReduceMotion ? 0 : i * 0.12 + 0.15,
+                    delay: shouldReduceMotion || isDragging ? 0 : i * 0.12 + 0.15,
                     ease: "easeOut",
                   }}
-                  style={{ transformOrigin: `${node.x}px ${node.y}px` }}
-                  filter={isHovered ? "url(#glow)" : undefined}
+                  style={{ transformOrigin: `${p.x}px ${p.y}px` }}
+                  filter={hot ? "url(#glow)" : undefined}
                 >
                   <rect
-                    x={node.x - W / 2}
-                    y={node.y - H / 2}
+                    x={p.x - W / 2}
+                    y={p.y - H / 2}
                     width={W}
                     height={H}
                     rx={node.variant === "side" ? 14 : 10}
-                    fill={nodeFill(node.variant, isHovered)}
-                    stroke={nodeStroke(node.variant, isHovered)}
-                    strokeWidth={isHovered ? 1.5 : 1}
+                    fill={baseFill(node.variant)}
+                    stroke={nodeStroke(node.variant, hot)}
+                    style={{
+                      strokeWidth: hot ? 1.5 : 1,
+                      transition: "stroke 200ms ease, stroke-width 200ms ease",
+                    }}
+                  />
+                  {/* Hover glow cross-fade (gradient fills cannot be tweened, so
+                      the hot variant is a separate rect faded in on top). */}
+                  <rect
+                    x={p.x - W / 2}
+                    y={p.y - H / 2}
+                    width={W}
+                    height={H}
+                    rx={node.variant === "side" ? 14 : 10}
+                    fill={hotFill(node.variant)}
+                    pointerEvents="none"
+                    style={{
+                      opacity: hot ? 1 : 0,
+                      transition: "opacity 200ms ease",
+                    }}
                   />
                   <text
-                    x={node.x}
-                    y={node.y + 4}
+                    x={p.x}
+                    y={p.y + 4}
                     textAnchor="middle"
                     fontSize="11"
                     fontWeight={600}
                     fontFamily="var(--font-mono)"
                     fill={node.variant === "terminal" ? "#1a0d04" : "#f5f5f7"}
+                    pointerEvents="none"
                   >
                     {node.label}
                   </text>
@@ -305,8 +589,9 @@ export function GraphSection() {
             })}
 
             {/* Hover / focus detail panel, in SVG space so it scales with the
-                diagram. Content differs per node (kind + real caption). */}
-            {hoveredNode ? (
+                diagram. Keyed on the node id so it re-animates in per node
+                rather than popping. */}
+            {hoveredNode && hoveredPos ? (
               <foreignObject
                 x={tipX}
                 y={tipY}
@@ -314,7 +599,17 @@ export function GraphSection() {
                 height={TIP_H}
                 style={{ overflow: "visible", pointerEvents: "none" }}
               >
-                <div className="glow-border rounded-lg border border-hairline-strong bg-surface-3/95 p-3.5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.8)] backdrop-blur">
+                <motion.div
+                  key={hoveredNode.id}
+                  initial={
+                    shouldReduceMotion
+                      ? { opacity: 1, scale: 1, y: 0 }
+                      : { opacity: 0, scale: 0.96, y: 6 }
+                  }
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ duration: shouldReduceMotion ? 0 : 0.18, ease: "easeOut" }}
+                  className="glow-border rounded-lg border border-hairline-strong bg-surface-3/95 p-3.5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.8)] backdrop-blur"
+                >
                   <p className="font-mono text-[10px] font-semibold uppercase tracking-wide text-primary">
                     {hoveredNode.kind}
                   </p>
@@ -324,7 +619,7 @@ export function GraphSection() {
                   <p className="mt-1.5 text-[11px] leading-[1.45] text-slate">
                     {hoveredNode.caption}
                   </p>
-                </div>
+                </motion.div>
               </foreignObject>
             ) : null}
           </svg>
@@ -356,7 +651,7 @@ export function GraphSection() {
                 duration: shouldReduceMotion ? 0 : 0.2,
                 delay: shouldReduceMotion ? 0 : i * 0.06,
               }}
-              className="group flex gap-3 rounded-lg border border-transparent p-2 transition-colors hover:border-hairline-soft hover:bg-white/[0.02]"
+              className="group/item flex gap-3 rounded-lg border border-transparent p-2 transition-colors hover:border-hairline-soft hover:bg-white/[0.02]"
             >
               <span className="mt-0.5 font-mono text-xs font-semibold text-primary">
                 {String(i + 1).padStart(2, "0")}
