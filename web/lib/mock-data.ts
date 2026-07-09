@@ -42,11 +42,11 @@ export const MOCK_PROBLEM_DETAILS: Record<string, ProblemDetail> = {
       { level: 4, text: "Store each number's index as you scan; look up target - num before inserting." },
     ],
     test_cases: [
-      { id: "tc-1", description: "nums=[2,7,11,15], target=9", is_edge_case: false },
-      { id: "tc-2", description: "nums=[3,2,4], target=6", is_edge_case: false },
+      { id: "tc-1", args: { nums: [2, 7, 11, 15], target: 9 }, is_edge_case: false },
+      { id: "tc-2", args: { nums: [3, 2, 4], target: 6 }, is_edge_case: false },
       {
         id: "tc-3",
-        description: "duplicate values summing to target",
+        args: { nums: [3, 3], target: 6 },
         is_edge_case: true,
         edge_case_tag: "duplicate_values",
       },
@@ -86,11 +86,11 @@ export const MOCK_PROBLEM_DETAILS: Record<string, ProblemDetail> = {
       { level: 4, text: "Don't forget: an empty stack at the end (or a pop on empty) both matter." },
     ],
     test_cases: [
-      { id: "tc-1", description: "s = '()[]{}'", is_edge_case: false },
-      { id: "tc-2", description: "s = '(]'", is_edge_case: false },
+      { id: "tc-1", args: { s: "()[]{}" }, is_edge_case: false },
+      { id: "tc-2", args: { s: "(]" }, is_edge_case: false },
       {
         id: "tc-3",
-        description: "unmatched trailing open bracket, e.g. '([)'",
+        args: { s: "([)" },
         is_edge_case: true,
         edge_case_tag: "unmatched_close_on_nonempty_stack",
       },
@@ -129,11 +129,11 @@ export const MOCK_PROBLEM_DETAILS: Record<string, ProblemDetail> = {
       { level: 4, text: "Watch the loop condition: low <= high, and update low/high to mid +/- 1, not mid." },
     ],
     test_cases: [
-      { id: "tc-1", description: "nums=[-1,0,3,5,9,12], target=9", is_edge_case: false },
-      { id: "tc-2", description: "nums=[-1,0,3,5,9,12], target=2", is_edge_case: false },
+      { id: "tc-1", args: { nums: [-1, 0, 3, 5, 9, 12], target: 9 }, is_edge_case: false },
+      { id: "tc-2", args: { nums: [-1, 0, 3, 5, 9, 12], target: 2 }, is_edge_case: false },
       {
         id: "tc-3",
-        description: "target equal to the first or last element",
+        args: { nums: [-1, 0, 3, 5, 9, 12], target: 12 },
         is_edge_case: true,
         edge_case_tag: "boundary_index",
       },

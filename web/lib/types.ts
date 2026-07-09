@@ -20,10 +20,12 @@ export interface HintLadderEntry {
   text: string;
 }
 
-/** One authored test case, as surfaced to the frontend (no reference solution). */
+/** One authored test case, as surfaced to the frontend (no reference solution).
+ * Matches the real backend's TestCasePublic exactly -- it sends `args`, not a
+ * human-readable description, so the frontend formats one from `args`. */
 export interface TestCasePreview {
   id: string;
-  description: string;
+  args: Record<string, unknown>;
   is_edge_case: boolean;
   edge_case_tag?: string;
 }

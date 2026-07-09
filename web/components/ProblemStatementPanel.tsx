@@ -1,5 +1,23 @@
 import { difficultyBadgeClasses } from "@/lib/ui";
-import type { ProblemDetail } from "@/lib/types";
+import type { ProblemDetail, TestCasePreview } from "@/lib/types";
+
+/** Backend sends raw `args`, not prose -- render `nums=[2,7,11,15], target=9`. */
+function formatArgs(args: Record<string, unknown>): string {
+  return Object.entries(args)
+    .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+    .join(", ");
+}
+
+/** All test cases exist for grading, not display -- showing all of them (a
+ * problem can have 100+) would overwhelm this panel. Curate a small, useful
+ * set: every edge case (there are only ever a handful), plus enough plain
+ * cases to round out to at least 3 total. */
+function curateExampleCases(testCases: TestCasePreview[]): TestCasePreview[] {
+  const edgeCases = testCases.filter((tc) => tc.is_edge_case);
+  const plainCases = testCases.filter((tc) => !tc.is_edge_case);
+  const plainNeeded = Math.max(0, 3 - edgeCases.length);
+  return [...plainCases.slice(0, plainNeeded), ...edgeCases];
+}
 
 export interface ProblemStatementPanelProps {
   problem: ProblemDetail;
@@ -57,12 +75,12 @@ export default function ProblemStatementPanel({ problem, usedMock }: ProblemStat
               Example cases
             </h2>
             <ul className="space-y-2">
-              {problem.test_cases.map((tc) => (
+              {curateExampleCases(problem.test_cases).map((tc) => (
                 <li
                   key={tc.id}
                   className="rounded-md border border-hairline bg-surface-2 px-3 py-2 text-xs text-ink-tint"
                 >
-                  <span className="font-mono">{tc.description}</span>
+                  <span className="font-mono">{formatArgs(tc.args)}</span>
                   {tc.is_edge_case && (
                     <span className="ml-2 inline-flex items-center rounded-md bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-300 ring-1 ring-inset ring-sky-500/20">
                       edge case{tc.edge_case_tag ? `: ${tc.edge_case_tag}` : ""}
