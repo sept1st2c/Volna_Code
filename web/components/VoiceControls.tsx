@@ -7,6 +7,14 @@ import { createLiveKitToken } from "@/lib/api";
 export interface VoiceControlsProps {
   /** Used to derive the LiveKit room name, e.g. the problem slug. */
   problemSlug: string;
+  /**
+   * Fired once `room.connect()` resolves, handing the live `Room` instance
+   * up to the parent so sibling components (chat transcript, code
+   * submission) can use the same data channel this component connected.
+   */
+  onConnected?: (room: Room) => void;
+  /** Fired on disconnect (explicit or the room dropping on its own). */
+  onDisconnected?: () => void;
 }
 
 type VoiceStatus = "idle" | "connecting" | "connected" | "error";
@@ -22,7 +30,11 @@ type VoiceStatus = "idle" | "connecting" | "connected" | "error";
  * (the agent) is in the room and surfaces an honest "no tutor agent present"
  * state instead of pretending the tutoring loop is live.
  */
-export default function VoiceControls({ problemSlug }: VoiceControlsProps) {
+export default function VoiceControls({
+  problemSlug,
+  onConnected,
+  onDisconnected,
+}: VoiceControlsProps) {
   const [status, setStatus] = useState<VoiceStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [agentPresent, setAgentPresent] = useState(false);
@@ -75,12 +87,14 @@ export default function VoiceControls({ problemSlug }: VoiceControlsProps) {
       setStatus("idle");
       setAgentPresent(false);
       setMicEnabled(false);
+      onDisconnected?.();
     });
 
     try {
       await room.connect(tokenResponse.url, tokenResponse.token);
       refreshAgentPresence(room);
       setStatus("connected");
+      onConnected?.(room);
     } catch (err) {
       console.error("[voice] livekit-client room.connect() failed.", err);
       setStatus("error");
@@ -89,7 +103,7 @@ export default function VoiceControls({ problemSlug }: VoiceControlsProps) {
       );
       roomRef.current = null;
     }
-  }, [problemSlug, refreshAgentPresence]);
+  }, [problemSlug, refreshAgentPresence, onConnected, onDisconnected]);
 
   const handleDisconnect = useCallback(async () => {
     await roomRef.current?.disconnect();
@@ -97,7 +111,8 @@ export default function VoiceControls({ problemSlug }: VoiceControlsProps) {
     setStatus("idle");
     setAgentPresent(false);
     setMicEnabled(false);
-  }, []);
+    onDisconnected?.();
+  }, [onDisconnected]);
 
   const handleToggleMic = useCallback(async () => {
     const room = roomRef.current;
