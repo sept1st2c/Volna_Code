@@ -172,16 +172,19 @@ class TokenRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     token: str
+    url: str
+    room: str
 
 
 @app.post("/livekit/token", response_model=TokenResponse)
 def create_livekit_token(req: TokenRequest) -> TokenResponse:
     api_key = os.environ.get("LIVEKIT_API_KEY")
     api_secret = os.environ.get("LIVEKIT_API_SECRET")
-    if not api_key or not api_secret:
+    livekit_url = os.environ.get("LIVEKIT_URL")
+    if not api_key or not api_secret or not livekit_url:
         raise HTTPException(
             status_code=500,
-            detail="LIVEKIT_API_KEY / LIVEKIT_API_SECRET not configured",
+            detail="LIVEKIT_API_KEY / LIVEKIT_API_SECRET / LIVEKIT_URL not configured",
         )
 
     grants = lk_api.VideoGrants(room_join=True, room=req.room)
@@ -192,4 +195,4 @@ def create_livekit_token(req: TokenRequest) -> TokenResponse:
         .with_grants(grants)
     )
 
-    return TokenResponse(token=token.to_jwt())
+    return TokenResponse(token=token.to_jwt(), url=livekit_url, room=req.room)

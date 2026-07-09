@@ -45,7 +45,12 @@ export default function VoiceControls({ problemSlug }: VoiceControlsProps) {
     let tokenResponse;
     try {
       tokenResponse = await createLiveKitToken({
-        room: `tutor-${problemSlug}`,
+        // The LiveKit Agent worker's room-naming convention (server/agent/worker.py,
+        // _resolve_problem_slug) falls back to treating the room NAME itself as the
+        // problem slug when no room metadata is set -- so this must be the bare
+        // slug, not a prefixed variant, or the worker can't resolve which problem
+        // to tutor and silently defaults to "two-sum".
+        room: problemSlug,
         identity: identityRef.current,
       });
     } catch (err) {
