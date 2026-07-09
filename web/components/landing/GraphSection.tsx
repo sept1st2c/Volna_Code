@@ -67,8 +67,8 @@ const nodes: NodeSpec[] = [
   { id: "CODING", label: "CODING", kind: "Editor node", x: 430, y: 460, variant: "spine", caption: "You write real code in the editor while the tutor asks why, referencing your actual diff." },
   { id: "EXECUTING", label: "EXECUTING", kind: "Sandbox call (Piston)", x: 150, y: 520, variant: "spine", caption: "Your code runs in a real sandbox against real test cases. Nothing here is simulated." },
   { id: "FEEDBACK", label: "FEEDBACK", kind: "Verdict narration", x: 280, y: 620, variant: "spine", caption: "Narrates Piston's actual result. It explains a verdict, it never invents one." },
-  { id: "ITERATION", label: "ITERATION", kind: "Iteration router", x: 780, y: 600, variant: "side", caption: "Failed a test, or complexity's off? Back to coding, or back to hints if you're fundamentally stuck." },
-  { id: "COMPLETE", label: "COMPLETE", kind: "Terminal node", x: 1000, y: 600, variant: "terminal", caption: "All tests pass and the complexity holds up. Done, for real this time." },
+  { id: "ITERATION", label: "ITERATION", kind: "Iteration router", x: 780, y: 600, variant: "side", caption: "Failed a test? Back to coding for another pass. A separate route back to the hint ladder for 'still fundamentally stuck' isn't wired yet, so it always retries through coding for now." },
+  { id: "COMPLETE", label: "COMPLETE", kind: "Terminal node", x: 1000, y: 600, variant: "terminal", caption: "All test cases pass against the real sandbox. Done, for real this time." },
 ];
 
 const edges: EdgeSpec[] = [
@@ -79,13 +79,12 @@ const edges: EdgeSpec[] = [
   { id: "e-hint-coding", from: "HINT_LADDER", to: "CODING", shape: "auto", bow: -34, label: "optimal approach found", labelDx: -46, labelDy: 4 },
   { id: "e-coding-exec", from: "CODING", to: "EXECUTING", shape: "auto", bow: 44, label: "submit via data channel", labelDx: -30, labelDy: -22 },
   { id: "e-exec-feedback", from: "EXECUTING", to: "FEEDBACK", shape: "auto", bow: -28 },
-  { id: "e-feedback-complete", from: "FEEDBACK", to: "COMPLETE", shape: "auto", bow: 60, label: "all pass + good complexity", labelDy: -12 },
+  { id: "e-feedback-complete", from: "FEEDBACK", to: "COMPLETE", shape: "auto", bow: 60, label: "all tests pass", labelDy: -12 },
   { id: "e-check-remediation", from: "COMPREHENSION_CHECK", to: "COMPREHENSION_REMEDIATION", shape: "arc-up", branch: true, label: "gaps found", labelDx: 10, labelDy: -10 },
   { id: "e-remediation-check", from: "COMPREHENSION_REMEDIATION", to: "COMPREHENSION_CHECK", shape: "arc-down", branch: true },
   { id: "e-hint-self", from: "HINT_LADDER", to: "HINT_LADDER", shape: "self", branch: true, label: "stuck 2+ turns" },
-  { id: "e-feedback-iteration", from: "FEEDBACK", to: "ITERATION", shape: "arc-up", branch: true, spread: 46, label: "tests failed / can improve", labelDx: 4, labelDy: -18 },
+  { id: "e-feedback-iteration", from: "FEEDBACK", to: "ITERATION", shape: "arc-up", branch: true, spread: 46, label: "tests failed", labelDx: 4, labelDy: -18 },
   { id: "e-iteration-coding", from: "ITERATION", to: "CODING", shape: "back", branch: true, spread: 90, startDy: -14 },
-  { id: "e-iteration-hint", from: "ITERATION", to: "HINT_LADDER", shape: "back", branch: true, spread: 70, startDy: 14, label: "fundamentally stuck again", labelDx: 20, labelDy: -8 },
 ];
 
 const VIEW_W = VB_W;
