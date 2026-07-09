@@ -24,7 +24,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Volna — Your DSA tutor that never skips to the answer",
+  title: "Volna: Your DSA tutor that never skips to the answer",
   description:
     "Explain the problem back. Defend your approach out loud. Watch real test cases catch what you missed. Then do it again, better.",
 };

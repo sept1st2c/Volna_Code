@@ -18,8 +18,9 @@ export function QualitativeBadges() {
           {badges.map((badge) => (
             <li
               key={badge}
-              className="rounded-full bg-cream-deeper px-4 py-1.5 text-sm font-semibold text-ink"
+              className="inline-flex items-center gap-2 rounded-full border border-hairline-soft bg-surface-2 px-4 py-1.5 text-sm font-medium text-ink-tint transition-colors hover:border-hairline-strong hover:text-ink"
             >
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               {badge}
             </li>
           ))}

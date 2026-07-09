@@ -26,7 +26,7 @@ const columns = [
 
 export function Footer() {
   return (
-    <footer className="bg-footer-cream px-6 py-16 text-ink sm:px-8 sm:py-[64px]">
+    <footer className="border-t border-hairline-soft bg-footer-cream px-6 py-16 text-ink sm:px-8 sm:py-[64px]">
       <div className="mx-auto grid max-w-[1280px] gap-10 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <span className="font-display text-xl text-ink">Volna</span>
@@ -44,7 +44,7 @@ export function Footer() {
                 <li key={link.label}>
                   <Link
                     href={link.href}
-                    className="text-sm text-primary"
+                    className="link-underline text-sm text-slate transition-colors hover:text-primary"
                   >
                     {link.label}
                   </Link>

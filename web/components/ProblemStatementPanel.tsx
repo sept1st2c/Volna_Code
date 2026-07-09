@@ -23,7 +23,7 @@ export default function ProblemStatementPanel({ problem, usedMock }: ProblemStat
         </div>
         {usedMock && (
           <p className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
-            Backend unreachable — showing offline sample data.
+            Backend unreachable. Showing offline sample data.
           </p>
         )}
       </header>

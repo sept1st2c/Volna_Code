@@ -1,12 +1,13 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
+import { GridBackground } from "./GridBackground";
 
 type Turn = { role: "tutor" | "you"; text: string };
 
 // A scripted, fake conversation. The tutor doesn't exist yet (voice is M7 in
-// PLAN.md's build sequencing) — this is staged copy to show what the loop
-// will feel like, not a recording of a real session.
+// PLAN.md's build sequencing): this is staged copy to show what the loop will
+// feel like, not a recording of a real session.
 const script: Turn[] = [
   { role: "tutor", text: "Let's start with Two Sum. Tell me the problem back in your own words." },
   { role: "you", text: "Given an array of numbers and a target, find two that add up to it and return their indices." },
@@ -25,9 +26,11 @@ export function DemoTranscript() {
   const shouldReduceMotion = useReducedMotion();
 
   return (
-    <section id="demo" className="bg-surface py-16 sm:py-24">
-      <div className="mx-auto max-w-[720px] px-6 sm:px-8">
-        <span className="text-[11px] font-semibold uppercase tracking-[1px] text-primary">
+    <section id="demo" className="relative overflow-hidden bg-surface py-16 sm:py-24">
+      <GridBackground variant="grid" />
+
+      <div className="relative mx-auto max-w-[720px] px-6 sm:px-8">
+        <span className="font-mono text-[11px] font-semibold uppercase tracking-[1px] text-primary">
           What a session sounds like
         </span>
         <h2 className="font-display mt-3 text-[32px] leading-[1.15] tracking-[-0.5px] text-ink sm:text-[40px]">
@@ -69,13 +72,18 @@ export function DemoTranscript() {
               }}
             >
               <div
-                className={`max-w-[85%] rounded-lg px-4 py-3 text-[15px] leading-[1.5] ${
+                className={`max-w-[85%] rounded-2xl px-4 py-3 text-[15px] leading-[1.5] ${
                   turn.role === "tutor"
-                    ? "bg-canvas border border-hairline-soft text-ink"
-                    : "bg-ink text-on-dark"
+                    ? "rounded-tl-sm border border-hairline-soft bg-surface-2 text-ink"
+                    : "rounded-tr-sm border border-transparent text-on-primary"
                 }`}
+                style={
+                  turn.role === "you"
+                    ? { background: "var(--gradient-ember-soft)" }
+                    : undefined
+                }
               >
-                <p className="mb-1 font-mono text-[11px] font-semibold uppercase tracking-wide opacity-60">
+                <p className="mb-1 font-mono text-[11px] font-semibold uppercase tracking-wide opacity-70">
                   {turn.role === "tutor" ? "Tutor" : "You"}
                 </p>
                 {turn.text}
