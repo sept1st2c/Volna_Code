@@ -33,10 +33,10 @@ export default function ProblemsPage() {
   }, []);
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-3xl px-6 py-12">
+    <main className="mx-auto min-h-screen w-full max-w-3xl bg-canvas px-6 py-12 text-ink">
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Pick a problem</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <h1 className="text-2xl font-semibold text-ink">Pick a problem</h1>
+        <p className="mt-1 text-sm text-steel">
           Choose a problem to start a tutoring session. You&apos;ll explain your approach out loud,
           write real code, and run it against real test cases.
         </p>
@@ -47,14 +47,14 @@ export default function ProblemsPage() {
           {[0, 1, 2].map((i) => (
             <li
               key={i}
-              className="h-16 animate-pulse rounded-lg border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-800/50"
+              className="h-16 animate-pulse rounded-lg border border-hairline bg-surface-2"
             />
           ))}
         </ul>
       )}
 
       {state.status === "error" && (
-        <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+        <p className="rounded-md bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
           Couldn&apos;t load problems: {state.message}
         </p>
       )}
@@ -62,7 +62,7 @@ export default function ProblemsPage() {
       {state.status === "loaded" && (
         <>
           {state.usedMock && (
-            <p className="mb-4 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+            <p className="mb-4 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
               Backend unreachable at the configured API URL. Showing offline sample problems.
             </p>
           )}
@@ -71,9 +71,9 @@ export default function ProblemsPage() {
               <li key={problem.slug}>
                 <Link
                   href={`/tutor/${problem.slug}`}
-                  className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-4 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700 dark:hover:bg-slate-800/60"
+                  className="flex items-center justify-between rounded-lg border border-hairline bg-surface px-4 py-4 transition-colors hover:border-hairline-strong hover:bg-surface-2"
                 >
-                  <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  <span className="text-sm font-medium text-ink">
                     {problem.title}
                   </span>
                   <span className={difficultyBadgeClasses(problem.difficulty)}>

@@ -25,7 +25,7 @@ import type { ChatMessage, ProblemDetail, SubmissionResult } from "@/lib/types";
 const CodeEditorPanel = dynamic(() => import("@/components/CodeEditorPanel"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-full items-center justify-center text-sm text-slate-400 dark:text-slate-500">
+    <div className="flex h-full items-center justify-center bg-surface-code text-sm text-stone">
       Loading editor…
     </div>
   ),
@@ -145,18 +145,18 @@ export default function TutorSessionPage({ params }: TutorSessionPageProps) {
     result && result.slug === slug ? result : { status: "loading" };
 
   return (
-    <main className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-950">
-      <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-6 py-3 dark:border-slate-800 dark:bg-slate-900">
+    <main className="flex min-h-screen flex-col bg-canvas text-ink">
+      <header className="flex items-center gap-3 border-b border-hairline bg-surface px-6 py-3">
         <Link
           href="/problems"
-          className="text-sm text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+          className="text-sm text-steel hover:text-ink"
         >
           ← Problems
         </Link>
         {state.status === "loaded" && (
           <>
-            <span className="text-slate-300 dark:text-slate-700">/</span>
-            <h1 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            <span className="text-stone">/</span>
+            <h1 className="text-sm font-semibold text-ink">
               {state.problem.title}
             </h1>
             <span className={difficultyBadgeClasses(state.problem.difficulty)}>
@@ -167,14 +167,14 @@ export default function TutorSessionPage({ params }: TutorSessionPageProps) {
       </header>
 
       {state.status === "loading" && (
-        <div className="flex flex-1 items-center justify-center text-sm text-slate-400 dark:text-slate-500">
+        <div className="flex flex-1 items-center justify-center text-sm text-stone">
           Loading problem…
         </div>
       )}
 
       {state.status === "error" && (
         <div className="flex flex-1 items-center justify-center px-6">
-          <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+          <p className="rounded-md bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
             Couldn&apos;t load this problem: {state.message}
           </p>
         </div>
@@ -187,7 +187,7 @@ export default function TutorSessionPage({ params }: TutorSessionPageProps) {
           </div>
 
           <div className="flex min-h-0 flex-col gap-3 lg:h-[calc(100vh-64px)]">
-            <div className="h-[420px] shrink-0 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800 lg:h-[65%]">
+            <div className="h-[420px] shrink-0 overflow-hidden rounded-lg border border-hairline lg:h-[65%]">
               <CodeEditorPanel
                 value={code}
                 language={state.problem.language ?? "python"}
@@ -195,7 +195,7 @@ export default function TutorSessionPage({ params }: TutorSessionPageProps) {
               />
             </div>
             <div className="flex shrink-0 items-center justify-between gap-2">
-              <p className="text-xs text-slate-400 dark:text-slate-500">
+              <p className="text-xs text-stone">
                 {voiceConnected
                   ? submitting
                     ? "Running your code against the tutor's test cases…"
@@ -207,7 +207,7 @@ export default function TutorSessionPage({ params }: TutorSessionPageProps) {
                   type="button"
                   onClick={handleSubmitCode}
                   disabled={submitting}
-                  className="shrink-0 rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                  className="shrink-0 rounded-md bg-primary px-2.5 py-1.5 text-xs font-medium text-on-primary hover:bg-primary-deep disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? "Submitting…" : "Submit"}
                 </button>
@@ -215,7 +215,7 @@ export default function TutorSessionPage({ params }: TutorSessionPageProps) {
                 <button
                   type="button"
                   onClick={() => setSubmission((r) => (r ? null : SAMPLE_SUBMISSION_RESULT))}
-                  className="shrink-0 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  className="shrink-0 rounded-md border border-hairline-strong px-2.5 py-1.5 text-xs font-medium text-ink-tint hover:bg-surface-2"
                 >
                   {submission ? "Clear sample result" : "Preview sample result (dev)"}
                 </button>
