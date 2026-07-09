@@ -1,0 +1,16 @@
+# secrets
+.env
+.env.local
+.env.example
+# node / next.js
+web/node_modules/
+web/.next/
+web/out/
+
+# python
+server/.venv/
+server/__pycache__/
+**/__pycache__/
+*.pyc
+.piston-data/
+.claude/

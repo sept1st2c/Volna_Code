@@ -149,18 +149,62 @@ One Piston call per submission (not per test case — shared free instance, unpu
 
 Built from `DESIGN-mistral.ai.md` — the sunset-orange/cream editorial system. One flag before building: **PP Editorial Old is a commercial font we don't have a license for.** Recommend substituting a free, similarly-toned editorial serif — **Fraunces** (Google Fonts, warm literary display character) — for hero/display type, keeping Inter and JetBrains Mono exactly as specified.
 
+### Copy voice rules
+
+- **No em dashes or hyphen-as-dash punctuation anywhere in marketing copy.** Use periods, commas, or colons to break a sentence instead.
+- **Banned words/phrases**: seamless, revolutionize, unlock your potential, cutting-edge, leverage, empower, game-changing, in today's fast-paced world, elevate. If a sentence could appear on any generic SaaS landing page, rewrite it to be specific to this product instead.
+- **Prefer concrete claims over vague superlatives.** "Real sandboxed execution against test cases" beats "powered by advanced AI."
+- **Tone**: confident, a little blunt, treats the reader like someone who's been burned by a tutorial that just hands over the answer.
+
+Hero direction (approved): blunt/confident.
+```
+Your DSA tutor that never skips to the answer.
+
+Explain the problem back. Defend your approach out loud.
+Watch real test cases catch what you missed. Then do it again, better.
+```
+
+### Section breakdown
+
 | Section | Component(s) used | Notes |
 |---|---|---|
 | Top nav | Standard sticky white bar per doc | Logo + links + `button-dark` "Try it" CTA |
-| Hero | `hero-band-sunset` | Headline in Fraunces (substitute for PP Editorial Old), subtitle in Inter, sunset gradient background, `button-primary` + `button-secondary` |
-| Feature row (3-up) | `card-feature` | "Understand the problem" / "Find the approach" / "Write & defend your code" — mirrors the tutoring loop |
-| Demo mockup | `code-block` + `code-block-header` | Dark IDE-style mockup showing a snippet of the hint-ladder conversation |
-| Stat row | `stat-cell` | Illustrative, e.g. "3-stage grading", "Real sandboxed execution" |
+| Hero | `hero-band-sunset` | Headline/subtitle above, Fraunces for the headline, sunset gradient background, `button-primary` + `button-secondary` |
+| Feature row (3-up) | `card-feature` | "Understand the problem" / "Find the approach" / "Write & defend your code" — mirrors the actual tutoring loop, not generic feature bullets |
+| **How it actually thinks** | Custom component, not from the design doc — see below | The LangGraph state diagram, animated, as the centerpiece differentiator |
+| **Problems we hit building this** | `card-cream` row | Honest engineering-story section — see below |
+| Aesthetic code showcase | `code-block` + `code-block-header` | Dark IDE-style mockup, macOS-style window chrome, showing a real snippet (e.g. the hint ladder or harness output) in JetBrains Mono |
+| Demo area | Custom animated transcript, not a live embed yet | See sequencing note below |
+| Stat/latency row | `stat-cell` | **Deferred** — see sequencing note below, do not fabricate numbers |
 | Closing CTA | `cta-banner-cream` | Cream panel, Fraunces headline, `button-dark` CTA |
 | Footer | `footer-region` + `footer-link` | Cream-tinted, per doc |
 | **Sunset stripe band** | `sunset-stripe-band` | **Mandatory at the very foot of the page per the design doc's brand rule — never omit** |
 
 Buttons stay `{rounded.md}` (8px), cards `{rounded.lg}` (12px), no pill buttons except badges — per the doc's "sober, editorial, not playful" rule.
+
+### "How it actually thinks" — the graph as the hero visual
+
+Rather than illustrating the product with generic feature icons, render our real LangGraph state diagram (`INTRO → COMPREHENSION_CHECK → ... → COMPLETE`) as an SVG, animated to draw itself node by node as the visitor scrolls (stroke-dasharray/stroke-dashoffset reveal technique), each node lighting up alongside a short caption of what actually happens there ("Grades your explanation against the problem's real edge cases, not vibes"). This turns the deterministic-FSM-plus-grounded-LLM architecture into the pitch itself rather than hiding it behind marketing fluff — it's a genuine differentiator over "wraps ChatGPT in a chat box" tutors.
+
+### "Problems we hit building this" — honest engineering story
+
+A short row of `card-cream` tiles, each pairing a real obstacle with the real fix, e.g.:
+- "Piston's public sandbox went whitelist-only mid-build. We had to route around it." (fill in actual resolution once decided)
+- "Kept the whole stack near-zero-cost: Groq for the model and speech, Deepgram for voice, LiveKit's free tier for the room."
+- "The model doesn't get to invent a hint. Every hint, every edge case, every 'why brute force fails' comes from an authored problem bank, the LLM only judges and narrates."
+
+This is stronger trust-building than generic "powered by AI" badges because it's specific and true.
+
+### Sequencing notes (do not build out of order)
+
+- **Stats/latency row is deferred until after M7.** We have zero real measured numbers right now (voice pipeline doesn't exist yet). Ship the landing page first with qualitative badges only ("real sandboxed execution," "hints gated until you're actually stuck"); add the real measured-latency stat row as a follow-up pass once the voice loop is instrumented and we have honest numbers to show.
+- **Demo area ships as a staged animated transcript first** (scripted chat bubbles playing in sequence, styled like the real tutor UI), not a live interactive widget, since the actual tutor doesn't exist yet. Swap it for a real embedded/linked demo once the MVP is functional.
+
+### Animation approach
+
+- **Framer Motion** for scroll-triggered reveals (`whileInView`) on feature cards, stat tiles, and section transitions.
+- **SVG stroke-draw animation** for the LangGraph diagram, keyed to scroll position (e.g. via `useScroll`/`useTransform` from Framer Motion, or a lightweight IntersectionObserver-driven trigger if we want to avoid a full scrollytelling library).
+- Keep animations snappy (150 to 250ms for discrete reveals) and respect `prefers-reduced-motion`.
 
 ## Build Sequencing
 

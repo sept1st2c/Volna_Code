@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+/*
+  Design tokens sourced verbatim from /DESIGN-mistral.ai.md.
+  PP Editorial Old (commercial, unlicensed) is substituted with Fraunces
+  per PLAN.md's "Landing Page" section. The design doc documents no
+  dark-mode palette ("Known Gaps"), so this page is intentionally light-only.
+*/
+@theme inline {
+  /* Brand & accent */
+  --color-primary: #fa520f;
+  --color-primary-deep: #cc3a05;
+  --color-on-primary: #ffffff;
+  --color-sunshine-300: #ffd06a;
+  --color-sunshine-500: #ffb83e;
+  --color-sunshine-700: #ffa110;
+  --color-sunshine-800: #ff8105;
+  --color-sunshine-900: #ff8a00;
+  --color-yellow-saturated: #ffd900;
+  --color-block-5: #ffe295;
+  --color-block-6: #ffd900;
+  --color-block-7: #ff8105;
+
+  /* Cream / neutral warm */
+  --color-cream: #fff8e0;
+  --color-cream-light: #fffaeb;
+  --color-cream-deeper: #fff0c2;
+  --color-beige-deep: #e6d5a8;
+
+  /* Surface */
+  --color-canvas: #ffffff;
+  --color-surface: #fafafa;
+  --color-surface-cream: #fff8e0;
+  --color-surface-cream-soft: #fffaeb;
+  --color-surface-code: #1c1c1e;
+  --color-hairline: #e5e5e5;
+  --color-hairline-soft: #ededed;
+  --color-hairline-strong: #c7c7c7;
+
+  /* Text */
+  --color-ink: #1f1f1f;
+  --color-ink-tint: #3d3d3d;
+  --color-charcoal: #2c2c2c;
+  --color-slate: #4a4a4a;
+  --color-steel: #6a6a6a;
+  --color-stone: #8a8a8a;
+  --color-muted: #a8a8a8;
+  --color-on-dark: #ffffff;
+  --color-on-dark-muted: #a8a8a8;
+  --color-on-cream: #1f1f1f;
+  --color-footer-cream: #fff8e0;
+  --color-link: #fa520f;
+
+  /* Fonts (see layout.tsx for next/font wiring) */
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
+
+  /* Radius scale — sober/editorial, no pill buttons except badges */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-full: 9999px;
+}
+
+:root {
+  --background: var(--color-canvas);
+  --foreground: var(--color-ink);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Fraunces display type for hero/section headlines. */
+.font-display {
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+}
