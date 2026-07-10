@@ -114,6 +114,16 @@ export default function VoiceControls({
       el.style.display = "none";
       document.body.appendChild(el);
       audioElsRef.current.set(key, el);
+      // The `autoplay` attribute is a hint for network-sourced media, not a
+      // guarantee for a MediaStream `srcObject` set on a freshly-created
+      // element -- some browsers need an explicit `.play()` call to actually
+      // start audio out, and this is exactly the call that can be rejected
+      // by autoplay policy (surfaced via AudioPlaybackStatusChanged below,
+      // not silently swallowed).
+      el.play().catch((err) => {
+        console.warn("[voice] audio element .play() was rejected", err);
+        setAudioBlocked(true);
+      });
     });
     room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
       if (track.kind !== Track.Kind.Audio) return;
