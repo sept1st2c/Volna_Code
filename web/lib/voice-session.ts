@@ -32,6 +32,19 @@ import type { ChatMessage, SubmissionResult } from "./types";
  * `IncomingDataStreamManager` and are only observable via
  * `registerTextStreamHandler`.
  *
+ * IMPORTANT, and previously gotten wrong here: the handler's `reader` (a
+ * `TextStreamReader`) is an async iterator, and each `for await` iteration
+ * yields only THAT CHUNK's own decoded text, not the cumulative string so
+ * far -- confirmed by reading the reader's `[Symbol.asyncIterator]().next()`
+ * in the installed `livekit-client` source, which decodes only
+ * `result.value.content` (the current chunk). The reader's class-level
+ * docstring ("returns the entire string received up to the current point")
+ * describes its separate `readAll()` method (which does accumulate, but
+ * only resolves once the whole stream closes), not the per-iteration
+ * `for await` values. The consumer (`web/app/tutor/[slug]/page.tsx`) must
+ * concatenate deltas itself per segment, or each new word just replaces the
+ * last instead of building a sentence.
+ *
  * The Python side tags each text-stream write with a `sender_identity`
  * (`server/.venv/Lib/site-packages/livekit/agents/voice/room_io/room_io.py`,
  * `_init_task`: the agent's own output is tagged with

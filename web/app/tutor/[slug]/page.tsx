@@ -91,9 +91,18 @@ export default function TutorSessionPage({ params }: TutorSessionPageProps) {
         participantInfo.identity === room.localParticipant.identity ? "user" : "tutor";
 
       void (async () => {
+        // `TextStreamReader`'s async iterator yields each chunk's OWN text
+        // per iteration, not the cumulative string so far (confirmed by
+        // reading the installed livekit-client source -- its `next()` calls
+        // `decoder.decode(result.value.content)` on just that one chunk;
+        // only the separate, non-incremental `readAll()` method
+        // accumulates). Every delta has to be appended here ourselves, or
+        // each spoken word replaces the last instead of building a sentence.
+        let accumulated = "";
         try {
-          for await (const text of reader) {
-            setChatMessages((prev) => upsertTranscriptMessage(prev, segmentId, role, text));
+          for await (const delta of reader) {
+            accumulated += delta;
+            setChatMessages((prev) => upsertTranscriptMessage(prev, segmentId, role, accumulated));
           }
         } catch (err) {
           console.error("[voice] transcription text stream failed", err);
