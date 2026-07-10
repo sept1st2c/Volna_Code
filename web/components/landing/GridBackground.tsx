@@ -35,7 +35,7 @@ export function GridBackground({
       />
       {variant === "dots" && interactive ? (
         <div
-          className="absolute inset-0 bg-dots-hot opacity-0 transition-opacity duration-500 [transition-timing-function:ease] group-hover:opacity-100"
+          className="absolute inset-0 scale-90 bg-dots-hot opacity-0 transition-[opacity,transform] duration-[1400ms] ease-out group-hover:scale-100 group-hover:opacity-100"
           style={{
             WebkitMaskImage:
               "radial-gradient(180px circle at var(--gx, 50%) var(--gy, 30%), #000 0%, #000 30%, transparent 78%)",
