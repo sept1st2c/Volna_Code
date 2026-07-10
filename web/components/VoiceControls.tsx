@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Room, RoomEvent } from "livekit-client";
+import { RemoteTrack, Room, RoomEvent, Track } from "livekit-client";
 import { createLiveKitToken } from "@/lib/api";
 
 export interface VoiceControlsProps {
@@ -39,8 +39,17 @@ export default function VoiceControls({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [agentPresent, setAgentPresent] = useState(false);
   const [micEnabled, setMicEnabled] = useState(false);
+  // Some browsers block audio autoplay even after a user-gesture-triggered
+  // room.connect(); when that happens livekit-client sets
+  // room.canPlaybackAudio = false and fires AudioPlaybackStatusChanged. We
+  // surface a manual "tap to enable audio" fallback rather than silently
+  // leaving the tutor's voice unplayable with no explanation.
+  const [audioBlocked, setAudioBlocked] = useState(false);
 
   const roomRef = useRef<Room | null>(null);
+  // Attached remote <audio> elements, tracked so they can be torn down on
+  // unsubscribe/disconnect instead of leaking hidden DOM nodes.
+  const audioElsRef = useRef<Map<string, HTMLMediaElement>>(new Map());
   // useId (not Math.random) keeps this pure during render while still giving
   // each mounted session a unique, stable LiveKit participant identity.
   const reactId = useId();
@@ -87,7 +96,32 @@ export default function VoiceControls({
       setStatus("idle");
       setAgentPresent(false);
       setMicEnabled(false);
+      audioElsRef.current.forEach((el) => el.remove());
+      audioElsRef.current.clear();
       onDisconnected?.();
+    });
+
+    // Nothing in this app used @livekit/components-react's
+    // <RoomAudioRenderer/> (nor manually attached tracks at all) -- the
+    // tutor's synthesized voice was being subscribed to over WebRTC but
+    // never rendered to an actual <audio> element, so no sound ever played
+    // regardless of mic state. This is the actual playback path.
+    room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
+      if (track.kind !== Track.Kind.Audio) return;
+      const key = track.mediaStreamTrack.id;
+      const el = track.attach();
+      el.autoplay = true;
+      el.style.display = "none";
+      document.body.appendChild(el);
+      audioElsRef.current.set(key, el);
+    });
+    room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+      if (track.kind !== Track.Kind.Audio) return;
+      track.detach().forEach((el) => el.remove());
+      audioElsRef.current.delete(track.mediaStreamTrack.id);
+    });
+    room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+      setAudioBlocked(!room.canPlaybackAudio);
     });
 
     try {
@@ -95,6 +129,11 @@ export default function VoiceControls({
       refreshAgentPresence(room);
       setStatus("connected");
       onConnected?.(room);
+      // Still inside the click handler's async continuation, so this
+      // counts as the user gesture browsers require to unlock audio
+      // playback. If it's blocked anyway, AudioPlaybackStatusChanged above
+      // flips audioBlocked so the UI can offer a manual retry.
+      await room.startAudio().catch(() => setAudioBlocked(true));
     } catch (err) {
       console.error("[voice] livekit-client room.connect() failed.", err);
       setStatus("error");
@@ -113,6 +152,17 @@ export default function VoiceControls({
     setMicEnabled(false);
     onDisconnected?.();
   }, [onDisconnected]);
+
+  const handleEnableAudio = useCallback(async () => {
+    const room = roomRef.current;
+    if (!room) return;
+    try {
+      await room.startAudio();
+      setAudioBlocked(!room.canPlaybackAudio);
+    } catch (err) {
+      console.error("[voice] room.startAudio() retry failed.", err);
+    }
+  }, []);
 
   const handleToggleMic = useCallback(async () => {
     const room = roomRef.current;
@@ -194,6 +244,16 @@ export default function VoiceControls({
           <p className="rounded-md bg-emerald-500/10 px-2 py-1.5 text-emerald-300">
             Connected, and a tutor agent is present in the room.
           </p>
+        )}
+        {status === "connected" && audioBlocked && (
+          <button
+            type="button"
+            onClick={handleEnableAudio}
+            className="mt-2 w-full rounded-md bg-amber-500/10 px-2 py-1.5 text-left text-amber-300 hover:bg-amber-500/20"
+          >
+            Your browser is blocking the tutor&apos;s voice from playing automatically. Click here to
+            enable audio.
+          </button>
         )}
       </div>
     </section>
