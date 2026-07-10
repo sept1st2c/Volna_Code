@@ -5,6 +5,11 @@ type GridBackgroundProps = {
   aurora?: boolean;
   /** Slowly pan the grid (ignored under prefers-reduced-motion). */
   animated?: boolean;
+  /** "dots" only: brighten and enlarge the dots near the cursor, reading the
+   * same --gx/--gy custom properties the parent section's ember spotlight
+   * already tracks on mousemove. Requires a `group` class + `--gx`/`--gy`
+   * on an ancestor and `group-hover:opacity-100` to reveal on hover. */
+  interactive?: boolean;
 };
 
 /**
@@ -17,6 +22,7 @@ export function GridBackground({
   variant = "grid",
   aurora = false,
   animated = false,
+  interactive = false,
 }: GridBackgroundProps) {
   const textureClass = variant === "dots" ? "bg-dots" : "bg-grid";
 
@@ -27,6 +33,17 @@ export function GridBackground({
           animated ? "animate-grid-pan" : ""
         }`}
       />
+      {variant === "dots" && interactive ? (
+        <div
+          className="absolute inset-0 bg-dots-hot opacity-0 transition-opacity duration-500 [transition-timing-function:ease] group-hover:opacity-100"
+          style={{
+            WebkitMaskImage:
+              "radial-gradient(180px circle at var(--gx, 50%) var(--gy, 30%), #000 0%, #000 30%, transparent 78%)",
+            maskImage:
+              "radial-gradient(180px circle at var(--gx, 50%) var(--gy, 30%), #000 0%, #000 30%, transparent 78%)",
+          }}
+        />
+      ) : null}
       {aurora ? (
         <>
           <div

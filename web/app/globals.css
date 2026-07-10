@@ -138,6 +138,16 @@ body {
   background-size: 22px 22px;
 }
 
+/* Brightened, slightly larger dots for the cursor-reactive layer below --
+   same grid phase/size as .bg-dots so the two stay perfectly aligned. */
+.bg-dots-hot {
+  background-image: radial-gradient(
+    rgba(255, 197, 138, 0.9) 1.7px,
+    transparent 1.7px
+  );
+  background-size: 22px 22px;
+}
+
 /* Radial fade so background textures dissolve toward the edges. */
 .mask-fade {
   -webkit-mask-image: radial-gradient(

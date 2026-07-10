@@ -344,7 +344,7 @@ export function GraphSection() {
       onMouseMove={moveSpotlight}
       className="group relative overflow-hidden bg-surface py-16 sm:py-24"
     >
-      <GridBackground variant="dots" aurora />
+      <GridBackground variant="dots" aurora interactive />
 
       {/* Cursor-reactive ember spotlight scoped to this section. It only moves
           with the pointer (no ambient loop), so it needs no reduced-motion
