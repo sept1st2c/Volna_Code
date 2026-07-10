@@ -19,12 +19,14 @@ const items = [
 export function ProblemsWeHit() {
   return (
     <section id="problems-we-hit" className="mx-auto max-w-[1280px] px-6 py-16 sm:px-8 sm:py-24">
-      <span className="font-mono text-[11px] font-semibold uppercase tracking-[1px] text-primary">
-        Problems we hit building this
-      </span>
-      <h2 className="font-display mt-3 max-w-2xl text-[32px] leading-[1.15] tracking-[-0.5px] text-ink sm:text-[40px]">
-        The honest version, not the highlight reel.
-      </h2>
+      <Reveal>
+        <span className="font-mono text-[11px] font-semibold uppercase tracking-[1px] text-primary">
+          Problems we hit building this
+        </span>
+        <h2 className="font-display mt-3 max-w-2xl text-[32px] leading-[1.15] tracking-[-0.5px] text-ink sm:text-[40px]">
+          The honest version, not the highlight reel.
+        </h2>
+      </Reveal>
 
       <div className="mt-10 grid gap-6 md:grid-cols-3">
         {items.map((item, i) => (

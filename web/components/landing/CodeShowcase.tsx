@@ -30,7 +30,7 @@ export function CodeShowcase() {
   return (
     <section className="mx-auto max-w-[1280px] px-6 py-16 sm:px-8 sm:py-24">
       <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-        <div>
+        <Reveal>
           <span className="font-mono text-[11px] font-semibold uppercase tracking-[1px] text-primary">
             Authored, not improvised
           </span>
@@ -43,7 +43,7 @@ export function CodeShowcase() {
             ignore its own memorized version of the problem and judge only
             against what&apos;s in the file.
           </p>
-        </div>
+        </Reveal>
 
         <Reveal>
           <div className="glow-border overflow-hidden rounded-xl border border-hairline-soft shadow-[0_24px_60px_-20px_rgba(0,0,0,0.8)]">

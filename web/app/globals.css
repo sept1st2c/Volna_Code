@@ -348,13 +348,47 @@ body {
   animation: node-pulse 3.2s ease-in-out infinite;
 }
 
+/* Slow ambient breathing for the cursor-follow spotlight, layered on top of
+   its hover-triggered opacity fade so it never feels like a static patch. */
+@keyframes spotlight-breathe {
+  0%,
+  100% {
+    transform: scale(0.92);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+.animate-spotlight-breathe {
+  animation: spotlight-breathe 6s ease-in-out infinite;
+}
+
+/* Soft radar-style ping ring behind a hovered graph node. */
+@keyframes node-ring-ping {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+
+.animate-node-ring {
+  animation: node-ring-ping 1.6s cubic-bezier(0.2, 0.7, 0.3, 1) infinite;
+}
+
 /* Honor reduced-motion for every decorative loop defined here. */
 @media (prefers-reduced-motion: reduce) {
   .text-gradient-shimmer,
   .animate-aurora,
   .animate-grid-pan,
   .edge-flow,
-  .animate-node-pulse {
+  .animate-node-pulse,
+  .animate-spotlight-breathe,
+  .animate-node-ring {
     animation: none !important;
   }
   .text-gradient-shimmer {

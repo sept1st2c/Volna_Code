@@ -12,18 +12,20 @@ export function DemoTranscript() {
   return (
     <section id="demo" className="relative overflow-hidden bg-surface py-16 sm:py-24">
       <div className="relative mx-auto max-w-[1200px] px-6 sm:px-8">
-        <span className="font-mono text-[11px] font-semibold uppercase tracking-[1px] text-primary">
-          A real session, captured
-        </span>
-        <h2 className="font-display mt-3 max-w-2xl text-[32px] leading-[1.15] tracking-[-0.5px] text-ink sm:text-[40px]">
-          This is the actual product. Every line below is real.
-        </h2>
-        <p className="mt-4 max-w-2xl text-[17px] leading-[1.55] text-slate">
-          A genuine connection to the real voice worker, a real duplicate-value
-          edge case surfaced before the explanation was accepted, and a real
-          submission graded against a real sandbox. Nothing on this page is
-          staged.
-        </p>
+        <Reveal>
+          <span className="font-mono text-[11px] font-semibold uppercase tracking-[1px] text-primary">
+            A real session, captured
+          </span>
+          <h2 className="font-display mt-3 max-w-2xl text-[32px] leading-[1.15] tracking-[-0.5px] text-ink sm:text-[40px]">
+            This is the actual product. Every line below is real.
+          </h2>
+          <p className="mt-4 max-w-2xl text-[17px] leading-[1.55] text-slate">
+            A genuine connection to the real voice worker, a real duplicate-value
+            edge case surfaced before the explanation was accepted, and a real
+            submission graded against a real sandbox. Nothing on this page is
+            staged.
+          </p>
+        </Reveal>
 
         <Reveal>
           <div className="glow-border mt-10 overflow-hidden rounded-xl border border-hairline-soft shadow-[0_24px_60px_-20px_rgba(0,0,0,0.8)]">

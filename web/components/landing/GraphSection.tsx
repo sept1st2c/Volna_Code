@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useInView, useReducedMotion } from "framer-motion";
 import { GridBackground } from "./GridBackground";
+import { Reveal } from "./Reveal";
 
 type NodeSpec = {
   id: string;
@@ -346,34 +347,37 @@ export function GraphSection() {
     >
       <GridBackground variant="dots" aurora interactive />
 
-      {/* Cursor-reactive ember spotlight scoped to this section. It only moves
-          with the pointer (no ambient loop), so it needs no reduced-motion
-          gate; opacity is driven purely by CSS hover. */}
+      {/* Cursor-reactive spotlight scoped to this section: small, single-tone
+          ember tint (kept to the design system's sunset accent, no blue),
+          with a slow ambient breathing pulse layered under the hover fade so
+          it never reads as a static patch once revealed. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+        className="animate-spotlight-breathe pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-700 ease-out group-hover:opacity-100"
         style={{
           background:
-            "radial-gradient(560px circle at var(--gx, 50%) var(--gy, 30%), rgba(255,138,42,0.10), rgba(75,184,255,0.05) 40%, transparent 66%)",
+            "radial-gradient(320px circle at var(--gx, 50%) var(--gy, 30%), rgba(255,138,42,0.09), transparent 70%)",
         }}
       />
 
       <div className="relative mx-auto max-w-[1280px] px-6 sm:px-8">
-        <span className="inline-flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[1px] text-primary">
-          <span className="h-px w-6 bg-gradient-to-r from-transparent to-primary" />
-          How it actually thinks
-        </span>
-        <h2 className="font-display mt-3 max-w-2xl text-[32px] leading-[1.15] tracking-[-0.5px] text-ink sm:text-[40px]">
-          A state machine grading real answers, not a chatbot guessing what to
-          say next.
-        </h2>
-        <p className="mt-4 max-w-2xl text-[17px] leading-[1.55] text-slate">
-          This is the actual LangGraph running the tutoring session: every phase
-          is a node, every transition is a conditional edge reading structured
-          output, and the LLM never chooses its own next step. Hover any node to
-          see what it really does, drag one to rearrange the graph, and scroll to
-          watch it come alive.
-        </p>
+        <Reveal>
+          <span className="inline-flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[1px] text-primary">
+            <span className="h-px w-6 bg-gradient-to-r from-transparent to-primary" />
+            How it actually thinks
+          </span>
+          <h2 className="font-display mt-3 max-w-2xl text-[32px] leading-[1.15] tracking-[-0.5px] text-ink sm:text-[40px]">
+            A state machine grading real answers, not a chatbot guessing what to
+            say next.
+          </h2>
+          <p className="mt-4 max-w-2xl text-[17px] leading-[1.55] text-slate">
+            This is the actual LangGraph running the tutoring session: every phase
+            is a node, every transition is a conditional edge reading structured
+            output, and the LLM never chooses its own next step. Hover any node to
+            see what it really does, drag one to rearrange the graph, and scroll to
+            watch it come alive.
+          </p>
+        </Reveal>
 
         <div className="mt-12 overflow-x-auto">
           <svg
@@ -570,7 +574,11 @@ export function GraphSection() {
                         ? { opacity: 1, scale: 1 }
                         : { opacity: 0, scale: 0.92 }
                   }
-                  whileHover={shouldReduceMotion ? undefined : { scale: 1.05 }}
+                  whileHover={
+                    shouldReduceMotion
+                      ? undefined
+                      : { scale: 1.07, transition: { type: "spring", stiffness: 320, damping: 14 } }
+                  }
                   transition={{
                     duration: shouldReduceMotion ? 0 : 0.35,
                     delay: shouldReduceMotion || isDragging ? 0 : i * 0.12 + 0.15,
@@ -579,6 +587,23 @@ export function GraphSection() {
                   style={{ transformOrigin: `${p.x}px ${p.y}px` }}
                   filter={hot ? "url(#glow)" : undefined}
                 >
+                  {/* Radar-style ping ring, only while genuinely hot (hover/drag),
+                      giving the node hover state some life beyond a flat scale. */}
+                  {hot && !shouldReduceMotion ? (
+                    <rect
+                      x={p.x - W / 2}
+                      y={p.y - H / 2}
+                      width={W}
+                      height={H}
+                      rx={node.variant === "side" ? 14 : 10}
+                      fill="none"
+                      stroke={nodeStroke(node.variant, true)}
+                      strokeWidth={1.5}
+                      pointerEvents="none"
+                      className="animate-node-ring"
+                      style={{ transformOrigin: `${p.x}px ${p.y}px` }}
+                    />
+                  ) : null}
                   <rect
                     x={p.x - W / 2}
                     y={p.y - H / 2}
@@ -607,18 +632,23 @@ export function GraphSection() {
                       transition: "opacity 200ms ease",
                     }}
                   />
-                  <text
+                  <motion.text
                     x={p.x}
-                    y={p.y + 4}
+                    animate={{ y: hot && !shouldReduceMotion ? p.y + 2 : p.y + 4 }}
+                    transition={{ duration: 0.25, ease: "easeOut" }}
                     textAnchor="middle"
                     fontSize="11"
                     fontWeight={600}
                     fontFamily="var(--font-mono)"
                     fill={node.variant === "terminal" ? "#1a0d04" : "#f5f5f7"}
                     pointerEvents="none"
+                    style={{
+                      transition: "fill 200ms ease, letter-spacing 200ms ease",
+                      letterSpacing: hot ? "0.4px" : "0px",
+                    }}
                   >
                     {node.label}
-                  </text>
+                  </motion.text>
                 </motion.g>
               );
             })}
@@ -645,15 +675,25 @@ export function GraphSection() {
                   transition={{ duration: shouldReduceMotion ? 0 : 0.18, ease: "easeOut" }}
                   className="glow-border rounded-lg border border-hairline-strong bg-surface-3/95 p-3.5 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.8)] backdrop-blur"
                 >
-                  <p className="font-mono text-[10px] font-semibold uppercase tracking-wide text-primary">
-                    {hoveredNode.kind}
-                  </p>
-                  <p className="mt-1 font-mono text-[11px] font-semibold text-ink">
-                    {hoveredNode.label}
-                  </p>
-                  <p className="mt-1.5 text-[11px] leading-[1.45] text-slate">
-                    {hoveredNode.caption}
-                  </p>
+                  {[
+                    { key: "kind", className: "font-mono text-[10px] font-semibold uppercase tracking-wide text-primary", text: hoveredNode.kind },
+                    { key: "label", className: "mt-1 font-mono text-[11px] font-semibold text-ink", text: hoveredNode.label },
+                    { key: "caption", className: "mt-1.5 text-[11px] leading-[1.45] text-slate", text: hoveredNode.caption },
+                  ].map((line, li) => (
+                    <motion.p
+                      key={line.key}
+                      className={line.className}
+                      initial={shouldReduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{
+                        duration: shouldReduceMotion ? 0 : 0.2,
+                        delay: shouldReduceMotion ? 0 : 0.04 + li * 0.05,
+                        ease: "easeOut",
+                      }}
+                    >
+                      {line.text}
+                    </motion.p>
+                  ))}
                 </motion.div>
               </foreignObject>
             ) : null}
