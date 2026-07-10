@@ -18,6 +18,24 @@ const features = [
   },
 ];
 
+/** A small heading-block-and-paragraph-lines glyph, sketching what "content"
+ * looks like in miniature. Travels with the active numeral via a shared
+ * layoutId, echoing that each step reveals a heading (block) and body copy
+ * (lines) below. */
+function WireframeGlyph() {
+  return (
+    <div className="flex w-16 flex-col items-center gap-1.5" style={{ opacity: 0.55 }}>
+      <span
+        className="h-[7px] w-10 rounded-[2px]"
+        style={{ background: "var(--gradient-ember)", opacity: 0.7 }}
+      />
+      <span className="h-px w-full bg-hairline-strong" />
+      <span className="h-px w-[70%] bg-hairline-strong" />
+      <span className="h-px w-[45%] bg-hairline-strong" />
+    </div>
+  );
+}
+
 export function FeatureRow() {
   const [active, setActive] = useState(0);
   const shouldReduceMotion = useReducedMotion();
@@ -55,6 +73,20 @@ export function FeatureRow() {
                 aria-pressed={isActive}
                 className="group/num relative flex flex-col items-center gap-4 outline-none"
               >
+                {isActive && (
+                  <motion.div
+                    layoutId="feature-glyph"
+                    aria-hidden
+                    className="absolute -top-14 left-1/2 -translate-x-1/2"
+                    transition={
+                      shouldReduceMotion
+                        ? { duration: 0 }
+                        : { type: "spring", stiffness: 320, damping: 30 }
+                    }
+                  >
+                    <WireframeGlyph />
+                  </motion.div>
+                )}
                 <span
                   className={`font-display text-[56px] leading-none transition-all duration-300 sm:text-[80px] ${
                     isActive
