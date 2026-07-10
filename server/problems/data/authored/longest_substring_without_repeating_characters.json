@@ -1,0 +1,165 @@
+{
+  "id": 3,
+  "slug": "longest-substring-without-repeating-characters",
+  "title": "Longest Substring Without Repeating Characters",
+  "difficulty": "Medium",
+  "statement": "Given a string `s`, find the length of the longest substring without repeating characters. A substring must be contiguous — you can't skip characters.",
+  "constraints": [
+    "0 <= s.length <= 5 * 10^4",
+    "s consists of English letters, digits, symbols, and spaces"
+  ],
+  "entry_point": "lengthOfLongestSubstring",
+  "starter_code": "def lengthOfLongestSubstring(s):\n    pass\n",
+  "reference_solution": "def lengthOfLongestSubstring(s):\n    last_seen = {}\n    left = 0\n    longest = 0\n    for right, ch in enumerate(s):\n        if ch in last_seen and last_seen[ch] >= left:\n            left = last_seen[ch] + 1\n        last_seen[ch] = right\n        longest = max(longest, right - left + 1)\n    return longest\n",
+  "extra_harness_helpers": "",
+  "compare_fn": "def _compare(result, expected, args):\n    return result == expected\n",
+  "test_cases": [
+    {
+      "id": "basic_repeat",
+      "args": {
+        "s": "abcabcbb"
+      },
+      "expected": 3,
+      "is_edge_case": false,
+      "edge_case_tag": null,
+      "explanation_if_failed": null
+    },
+    {
+      "id": "all_same",
+      "args": {
+        "s": "bbbbb"
+      },
+      "expected": 1,
+      "is_edge_case": true,
+      "edge_case_tag": "all_repeating",
+      "explanation_if_failed": null
+    },
+    {
+      "id": "overlap_jump",
+      "args": {
+        "s": "pwwkew"
+      },
+      "expected": 3,
+      "is_edge_case": false,
+      "edge_case_tag": null,
+      "explanation_if_failed": null
+    },
+    {
+      "id": "empty_string",
+      "args": {
+        "s": ""
+      },
+      "expected": 0,
+      "is_edge_case": true,
+      "edge_case_tag": "empty_input",
+      "explanation_if_failed": null
+    },
+    {
+      "id": "no_repeats",
+      "args": {
+        "s": "abc"
+      },
+      "expected": 3,
+      "is_edge_case": false,
+      "edge_case_tag": null,
+      "explanation_if_failed": null
+    },
+    {
+      "id": "left_pointer_jump_back",
+      "args": {
+        "s": "abcad"
+      },
+      "expected": 4,
+      "is_edge_case": true,
+      "edge_case_tag": "stale_last_seen_index",
+      "explanation_if_failed": "'a' appears at index 0 and again at index 3, but by the time we see the second 'a', the window has already moved past index 0. A solution that jumps `left` to `last_seen[ch] + 1` without checking that `last_seen[ch]` is still inside the current window will incorrectly shrink the window and under-count the answer."
+    },
+    {
+      "id": "single_char",
+      "args": {
+        "s": "a"
+      },
+      "expected": 1,
+      "is_edge_case": true,
+      "edge_case_tag": "minimal_size",
+      "explanation_if_failed": null
+    },
+    {
+      "id": "space_and_case_sensitivity",
+      "args": {
+        "s": "a A a"
+      },
+      "expected": 3,
+      "is_edge_case": true,
+      "edge_case_tag": "space_and_case_sensitive_chars",
+      "explanation_if_failed": "The constraint allows spaces in `s`, and 'a' and 'A' are different characters — a solution that strips/normalizes whitespace, or that lowercases characters before comparing them, will miscount this. The longest run is 'A a' (indices 2-4), length 3."
+    }
+  ],
+  "brute_force": {
+    "description": "Check every possible substring (O(n^2) of them), and for each one scan it to verify all characters are unique (O(n)).",
+    "complexity": "O(n^3) time (or O(n^2) with a smarter uniqueness check)",
+    "why_insufficient": "At n = 5*10^4, even O(n^2) is 2.5 billion operations — this needs to run in roughly linear time."
+  },
+  "optimal_approach": {
+    "description": "Sliding window with two pointers: expand the right pointer each step; keep a map of each character's last-seen index; when a repeat is found inside the current window, jump the left pointer just past that repeat's previous position.",
+    "complexity": "O(n) time, O(min(n, charset size)) space"
+  },
+  "hint_ladder": [
+    {
+      "level": 1,
+      "text": "Instead of checking every substring from scratch, can you extend a window one character at a time and only shrink it when you hit a repeat?"
+    },
+    {
+      "level": 2,
+      "text": "Keep a map from character to the last index where you saw it."
+    },
+    {
+      "level": 3,
+      "text": "When the current character is already in your map, move the left edge of your window to just after that character's last occurrence."
+    },
+    {
+      "level": 4,
+      "text": "Watch out: only jump the left pointer forward if that last-seen index is actually still inside the current window — otherwise you can move left backward by mistake."
+    }
+  ],
+  "common_loopholes": [
+    {
+      "id": "empty",
+      "description": "Empty string input should return 0.",
+      "related_test_case_id": "empty_string"
+    },
+    {
+      "id": "all_repeat",
+      "description": "A string of all-identical characters should return 1, not 0.",
+      "related_test_case_id": "all_same"
+    },
+    {
+      "id": "stale_index",
+      "description": "A character seen before but now outside the current window must not incorrectly shrink it.",
+      "related_test_case_id": "left_pointer_jump_back"
+    },
+    {
+      "id": "space_and_case",
+      "description": "Spaces are valid characters in the input, and letter casing matters ('a' != 'A') — don't strip whitespace or normalize case.",
+      "related_test_case_id": "space_and_case_sensitivity"
+    }
+  ],
+  "comprehension_rubric": {
+    "key_points": [
+      "Answer is a LENGTH, not the substring itself",
+      "Substring must be CONTIGUOUS",
+      "'Without repeating characters' means every character in the window is unique",
+      "Empty string is a valid input (answer 0)"
+    ]
+  },
+  "complexity_probe": {
+    "arg_generator": "import random\ndef _generate_complexity_args(n):\n    # Bounded, realistic alphabet (matches the problem's own\n    # constraint) -- by the pigeonhole principle this caps a\n    # window-based approach's per-position work at the alphabet\n    # size regardless of n, which is exactly what makes the\n    # authored O(n) sliding window correct and distinguishes it\n    # from a from-scratch, no-reuse check-every-substring brute\n    # force (which stays slow regardless of alphabet size).\n    random.seed(3579 + n)\n    alphabet = 'abcdefghijklmnopqrstuvwxyz'\n    return {'s': ''.join(random.choice(alphabet) for _ in range(n))}\n",
+    "sizes": [
+      300,
+      1200,
+      4800
+    ],
+    "time_class": "linear",
+    "space_class": "constant"
+  }
+}

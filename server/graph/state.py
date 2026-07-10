@@ -15,6 +15,11 @@ Phase = Literal[
     "EXECUTING",
     "FEEDBACK",
     "ITERATION",
+    # Transient: only ever set mid-chain, within a single graph.ainvoke() call,
+    # between execution_feedback_node (tests just passed) and
+    # complexity_probe_node picking it up next -- never a resting phase a
+    # spoken turn's entry router needs to handle.
+    "COMPLEXITY_CHECK",
     "COMPLETE",
 ]
 
@@ -59,6 +64,23 @@ class TutorState(TypedDict, total=False):
     last_execution_result: list[dict]
     all_tests_passed: bool
 
+    # iteration routing: tracks whether the student is failing the SAME test
+    # case repeatedly across submissions (as opposed to a fresh bug each
+    # time), which is a deterministic "genuinely stuck" signal on its own --
+    # no LLM judgment needed. See graph/nodes/execution_feedback.py.
+    last_failing_test_id: str | None
+    repeat_fail_streak: int
+    # Set for exactly one hint_node call when execution_feedback_node routes
+    # here due to a repeat-fail streak: skips hint_node's own StuckSignal LLM
+    # judgment (the repeat failure IS the stuck signal) and forces an
+    # immediate hint advance, grounded in the specific failing case.
+    force_hint_advance: bool
+    force_hint_test_id: str | None
+
+    # empirical complexity check (graph/nodes/complexity.py), run once all
+    # tests pass and before COMPLETE is granted.
+    complexity_result: dict | None
+
     # narration output of the most recently run node -- what the TTS layer speaks
     narration: str
 
@@ -75,5 +97,10 @@ def initial_state(problem_slug: str) -> TutorState:
         hint_level=0,
         stuck_streak=0,
         hint_max_level_stuck_rounds=0,
+        last_failing_test_id=None,
+        repeat_fail_streak=0,
+        force_hint_advance=False,
+        force_hint_test_id=None,
+        complexity_result=None,
         session_facts="",
     )

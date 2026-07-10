@@ -20,7 +20,7 @@ class PistonError(Exception):
     pass
 
 
-async def run_python(source: str, timeout_s: float = 15.0) -> dict:
+async def run_python(source: str, timeout_s: float = 15.0, run_timeout_ms: int = 3000) -> dict:
     """Submit source to Piston and return the raw run result (stdout/stderr/code).
 
     Raises `PistonError` for every failure mode -- both an unexpected HTTP
@@ -32,12 +32,17 @@ async def run_python(source: str, timeout_s: float = 15.0) -> dict:
     crashing the graph turn instead of producing the honest
     "couldn't reach the sandbox" fallback that handler already knows how to
     build.
+
+    `run_timeout_ms` defaults to the correctness-harness's original 3s
+    budget; the complexity probe (graph/nodes/complexity.py) times several
+    input sizes in a single submission and passes a larger value since it
+    needs more real wall-clock room than one quick test-case run does.
     """
     payload = {
         "language": "python",
         "version": PYTHON_VERSION,
         "files": [{"content": source}],
-        "run_timeout": 3000,
+        "run_timeout": run_timeout_ms,
     }
     try:
         async with httpx.AsyncClient(timeout=timeout_s) as client:

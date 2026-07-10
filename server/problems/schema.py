@@ -42,6 +42,28 @@ class ComprehensionRubric(BaseModel):
     key_points: list[str] = Field(min_length=1)
 
 
+class ComplexityProbe(BaseModel):
+    """Authors an EMPIRICAL time/space complexity check for this problem: the
+    tutor measures the student's actual submitted code at increasing input
+    sizes rather than trusting an LLM's opinion of what Big-O it "looks
+    like". This is what lets a student pass with ANY correct approach (not
+    just the one the reference solution happens to use) as long as it really
+    scales the way the problem asks for -- see graph/complexity.py for the
+    growth-rate fit and graph/nodes/complexity.py for how it's invoked.
+    """
+
+    # Raw Python source defining `def _generate_complexity_args(n): ...`
+    # returning a dict of kwargs for `entry_point`, valid for any n in `sizes`.
+    # Does not need to know the correct answer -- only used for timing/memory,
+    # never compared against an expected value.
+    arg_generator: str
+    sizes: list[int] = Field(min_length=2)
+    time_class: str
+    # Defaults to time_class if not given (most problems' authored space
+    # bound is implied by, or equal to, their time bound).
+    space_class: str | None = None
+
+
 class Problem(BaseModel):
     id: int
     slug: str
@@ -68,3 +90,6 @@ class Problem(BaseModel):
     # least one authored edge case per problem.
     common_loopholes: list[Loophole] = Field(min_length=1)
     comprehension_rubric: ComprehensionRubric
+    # Optional: absent means this problem doesn't gate COMPLETE on a measured
+    # complexity check yet (falls back to "all tests passed" only).
+    complexity_probe: ComplexityProbe | None = None
