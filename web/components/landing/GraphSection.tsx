@@ -239,10 +239,36 @@ export function GraphSection() {
   const spotFrame = useRef<number | null>(null);
   const spotPending = useRef<{ x: number; y: number } | null>(null);
 
+  // --- The dot-brighten layer deliberately trails the cursor instead of
+  // teleporting to it: --dgx/--dgy chase the real (--gx/--gy) position with
+  // per-frame easing, so the "bigger, brighter" dots visibly catch up a
+  // beat late rather than snapping there in real time. ---
+  const dotFrame = useRef<number | null>(null);
+  const dotTarget = useRef<Pt>({ x: 0, y: 0 });
+  const dotCurrent = useRef<Pt | null>(null);
+  const DOT_EASE = 0.055;
+
+  function stepDotChase() {
+    dotFrame.current = null;
+    const el = sectionRef.current;
+    const cur = dotCurrent.current;
+    if (!el || !cur) return;
+    const target = dotTarget.current;
+    const nx = cur.x + (target.x - cur.x) * DOT_EASE;
+    const ny = cur.y + (target.y - cur.y) * DOT_EASE;
+    dotCurrent.current = { x: nx, y: ny };
+    el.style.setProperty("--dgx", `${nx}px`);
+    el.style.setProperty("--dgy", `${ny}px`);
+    if (Math.abs(target.x - nx) > 0.4 || Math.abs(target.y - ny) > 0.4) {
+      dotFrame.current = requestAnimationFrame(stepDotChase);
+    }
+  }
+
   useEffect(() => {
     return () => {
       if (dragFrame.current != null) cancelAnimationFrame(dragFrame.current);
       if (spotFrame.current != null) cancelAnimationFrame(spotFrame.current);
+      if (dotFrame.current != null) cancelAnimationFrame(dotFrame.current);
     };
   }, []);
 
@@ -317,8 +343,22 @@ export function GraphSection() {
         const pt = spotPending.current;
         if (!el || !pt) return;
         const r = el.getBoundingClientRect();
-        el.style.setProperty("--gx", `${pt.x - r.left}px`);
-        el.style.setProperty("--gy", `${pt.y - r.top}px`);
+        const gx = pt.x - r.left;
+        const gy = pt.y - r.top;
+        el.style.setProperty("--gx", `${gx}px`);
+        el.style.setProperty("--gy", `${gy}px`);
+
+        dotTarget.current = { x: gx, y: gy };
+        if (dotCurrent.current == null) {
+          // Snap on first contact so it doesn't fly in from a stale/zero
+          // position -- the lag only kicks in once it's already tracking.
+          dotCurrent.current = { x: gx, y: gy };
+          el.style.setProperty("--dgx", `${gx}px`);
+          el.style.setProperty("--dgy", `${gy}px`);
+        }
+        if (dotFrame.current == null) {
+          dotFrame.current = requestAnimationFrame(stepDotChase);
+        }
       });
     }
   }

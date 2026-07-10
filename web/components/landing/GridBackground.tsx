@@ -37,10 +37,14 @@ export function GridBackground({
         <div
           className="absolute inset-0 scale-90 bg-dots-hot opacity-0 transition-[opacity,transform] duration-[1400ms] ease-out group-hover:scale-100 group-hover:opacity-100"
           style={{
+            // Deliberately reads --dgx/--dgy (a JS-eased, lagging chase of
+            // the real cursor position) rather than --gx/--gy (the instant
+            // one the ember spotlight uses) -- the brighter dots should
+            // visibly catch up a beat late, not teleport to the pointer.
             WebkitMaskImage:
-              "radial-gradient(180px circle at var(--gx, 50%) var(--gy, 30%), #000 0%, #000 30%, transparent 78%)",
+              "radial-gradient(180px circle at var(--dgx, 50%) var(--dgy, 30%), #000 0%, #000 30%, transparent 78%)",
             maskImage:
-              "radial-gradient(180px circle at var(--gx, 50%) var(--gy, 30%), #000 0%, #000 30%, transparent 78%)",
+              "radial-gradient(180px circle at var(--dgx, 50%) var(--dgy, 30%), #000 0%, #000 30%, transparent 78%)",
           }}
         />
       ) : null}
