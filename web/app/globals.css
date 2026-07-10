@@ -380,6 +380,34 @@ body {
   animation: node-ring-ping 1.6s cubic-bezier(0.2, 0.7, 0.3, 1) infinite;
 }
 
+/* Graph section's dot-brighten hover layer: grows past its resting size
+   first, then eases back down to a smaller settle -- not a flat grow-and-
+   hold -- so it reads as a bloom rather than a static zoom-in. */
+@keyframes dot-bloom-settle {
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.22);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.02);
+    opacity: 1;
+  }
+}
+
+.dot-bloom-hover {
+  transform: scale(0.9);
+  opacity: 0;
+  transition: opacity 900ms ease-out, transform 900ms ease-out;
+}
+
+.group:hover .dot-bloom-hover {
+  animation: dot-bloom-settle 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 /* Honor reduced-motion for every decorative loop defined here. */
 @media (prefers-reduced-motion: reduce) {
   .text-gradient-shimmer,
@@ -388,8 +416,12 @@ body {
   .edge-flow,
   .animate-node-pulse,
   .animate-spotlight-breathe,
-  .animate-node-ring {
+  .animate-node-ring,
+  .group:hover .dot-bloom-hover {
     animation: none !important;
+  }
+  .dot-bloom-hover {
+    transition-duration: 200ms !important;
   }
   .text-gradient-shimmer {
     background-position: 0 center;

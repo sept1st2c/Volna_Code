@@ -35,7 +35,7 @@ export function GridBackground({
       />
       {variant === "dots" && interactive ? (
         <div
-          className="absolute inset-0 scale-90 bg-dots-hot opacity-0 transition-[opacity,transform] duration-[1400ms] ease-out group-hover:scale-100 group-hover:opacity-100"
+          className="dot-bloom-hover absolute inset-0 bg-dots-hot"
           style={{
             // Deliberately reads --dgx/--dgy (a JS-eased, lagging chase of
             // the real cursor position) rather than --gx/--gy (the instant
