@@ -80,6 +80,7 @@ from livekit.agents import Agent, AgentSession, JobContext, ModelSettings, Worke
 from livekit.plugins import deepgram, groq, silero
 
 from graph.build import get_graph
+from graph.persistence import delete_checkpoint, load_checkpoint, save_checkpoint
 from graph.state import TutorState, initial_state
 from problems import get_problem
 from problems.schema import Problem
@@ -99,6 +100,23 @@ _ALREADY_SOLVED_NARRATION = (
     "This one's already solved -- pick another problem whenever you're ready."
 )
 _EXECUTING_BUSY_NARRATION = "Still running your code -- one moment."
+
+# Idle handling: LiveKit's own `user_away_timeout` (set below on AgentSession)
+# flips user_state to "away" after that many seconds of mutual (agent+user)
+# silence. We react to that event rather than run a separate silence timer.
+# Spoken once per away period (not repeated -- a single check-in, not
+# nagging), and only escalates to an actual disconnect after a much longer
+# stretch of continued silence, since a student silently reading the problem
+# or typing code is legitimate silence, not someone who's walked away.
+_AWAY_NUDGE_NARRATION = "Hey, just checking in -- still there? Take your time."
+_IDLE_DISCONNECT_AFTER_AWAY_S = 300.0
+_IDLE_DISCONNECT_NARRATION = (
+    "Looks like you've stepped away, so I'll end the session here to free up the room. "
+    "Come back and reconnect whenever you're ready -- we'll pick up right where we left off."
+)
+_WELCOME_BACK_NARRATION = (
+    "Welcome back -- picking up right where we left off on {title}."
+)
 
 # Belt-and-suspenders fallback for when `get_graph().ainvoke(...)` raises
 # despite every node's own Groq/Piston hardening (graph/llm.py's
@@ -210,6 +228,11 @@ class TutorAgent(Agent):
         # asyncio.Lock) is enough because asyncio is single-threaded and the
         # check-then-set below has no `await` in between, so it can't race.
         self._code_submission_in_flight = False
+        # Worker-side bookkeeping only -- never read by any graph node, so it
+        # deliberately lives here rather than in TutorState (no schema/
+        # persistence changes needed). See _process_turn's accumulation
+        # comment for why this exists.
+        self._last_spoken_phase: str | None = None
 
     async def _process_turn(self, user_text: str) -> str:
         """Core, directly-testable "run one graph turn given raw spoken
@@ -236,13 +259,50 @@ class TutorAgent(Agent):
 
         field = _SPOKEN_TURN_FIELD_BY_PHASE.get(phase)
         if field is not None:
-            self.state[field] = user_text
+            # latest_spoken_turn is ALWAYS just this turn's raw text, never
+            # accumulated -- see its docstring in state.py for why hint_node
+            # needs this instead of the accumulated field.
+            self.state["latest_spoken_turn"] = user_text
+
+            # Real live testing surfaced this: LiveKit's turn-detection often
+            # segments one continuous spoken explanation into several
+            # separate turns (natural mid-thought pauses), and this used to
+            # just overwrite `field` with the latest fragment each time --
+            # so a grading call could only ever see the LAST fragment of an
+            # otherwise complete, correct explanation, and the tutor kept
+            # asking the student to explain again even after they already
+            # had. Accumulate consecutive turns instead.
+            #
+            # Two things force a fresh buffer instead of accumulating, both
+            # caught in review as real bugs in an earlier version of this
+            # fix: the resting phase itself changing (a genuinely different
+            # question -- e.g. brute force vs optimal approach, even though
+            # both share the `approach_transcript` field name), OR
+            # fresh_guidance_just_delivered being set (the phase STRING can
+            # stay the same across a real new attempt -- comprehension
+            # cycles COMPREHENSION_CHECK -> COMPREHENSION_REMEDIATION and
+            # back to COMPREHENSION_CHECK after delivering a new edge case;
+            # HINT_LADDER rests at the same phase across many distinct hint
+            # rounds -- so phase-equality alone can't tell "still the same
+            # breath" from "responding to brand new information").
+            should_reset = self._last_spoken_phase != phase or self.state.get(
+                "fresh_guidance_just_delivered", False
+            )
+            if should_reset:
+                self.state[field] = user_text
+            else:
+                existing = self.state.get(field, "")
+                self.state[field] = f"{existing} {user_text}".strip() if existing else user_text
+            self._last_spoken_phase = phase
         elif phase in ("CODING", "ITERATION"):
             # coding_pause_node probes from `state["last_code"]`, not from
             # spoken text -- there's no TutorState field a spoken turn maps
             # onto here, so it's dropped and the graph runs on state as-is
             # (still routes to coding_pause_node per `_entry_router`).
-            pass
+            # Also clear the accumulation marker: if the student later ends
+            # up back at a field-mapped phase, that should start a fresh
+            # buffer, not resume whatever they'd said before coding started.
+            self._last_spoken_phase = None
         elif phase != "INTRO":
             # INTRO's narration ignores all input (see graph/nodes/intro.py)
             # so nothing to do. Any other value would mean `self.state`
@@ -312,6 +372,14 @@ class TutorAgent(Agent):
             previous_phase = self.state.get("phase", "CODING")
             self.state["last_code"] = code
             self.state["phase"] = "EXECUTING"
+            # A code submission can land the graph back at a field-mapped
+            # phase (e.g. execution_feedback_node forcing HINT_LADDER on a
+            # repeat-fail streak) without ever passing through
+            # _process_turn's own CODING/ITERATION reset in between. Clear
+            # it here too so the next spoken turn never mistakes this for a
+            # continuation of whatever was said before the submission --
+            # running code is new information, not a pause mid-sentence.
+            self._last_spoken_phase = None
 
             try:
                 result = await get_graph().ainvoke(self.state)
@@ -433,11 +501,83 @@ def _wire_data_channel(room: rtc.Room, agent: TutorAgent, session: AgentSession)
     room.on("data_received", _on_data_received)
 
 
+def _wire_idle_handling(room: rtc.Room, agent: TutorAgent, session: AgentSession, session_key: str) -> None:
+    """Reacts to LiveKit's own `user_state_changed` event (see the
+    `user_away_timeout` passed to `AgentSession` in `entrypoint`): speaks one
+    short check-in the first time a session goes quiet, then disconnects the
+    room -- after saving a resumable checkpoint -- if it stays quiet much
+    longer. Never runs its own silence-detection loop; LiveKit already tracks
+    mutual (agent+user) silence for us.
+
+    `session_key` (room name + room SID, computed once in `entrypoint` -- see
+    its docstring note) is what the checkpoint is saved under, NOT the bare
+    room name, since the room name alone is just the problem slug and is
+    shared by every session on that problem.
+    """
+    nudged = False
+    disconnect_task: asyncio.Task | None = None
+
+    async def _disconnect_after_prolonged_silence() -> None:
+        try:
+            await asyncio.sleep(_IDLE_DISCONNECT_AFTER_AWAY_S)
+        except asyncio.CancelledError:
+            return
+        try:
+            session.say(_IDLE_DISCONNECT_NARRATION)
+        except Exception:
+            logger.exception("failed to speak the idle-disconnect narration")
+        save_checkpoint(session_key, agent.state)
+        await room.disconnect()
+
+    def _on_user_state_changed(ev) -> None:
+        nonlocal nudged, disconnect_task
+        if ev.new_state == "away":
+            if not nudged:
+                nudged = True
+                try:
+                    session.say(_AWAY_NUDGE_NARRATION)
+                except Exception:
+                    logger.exception("failed to speak the away-check-in narration")
+            if disconnect_task is None or disconnect_task.done():
+                disconnect_task = asyncio.create_task(_disconnect_after_prolonged_silence())
+        else:
+            nudged = False
+            if disconnect_task is not None and not disconnect_task.done():
+                disconnect_task.cancel()
+            disconnect_task = None
+
+    session.on("user_state_changed", _on_user_state_changed)
+
+
 async def entrypoint(ctx: JobContext) -> None:
     await ctx.connect()
 
     problem_slug = _resolve_problem_slug(ctx.room)
     tutor_agent = TutorAgent(problem_slug)
+
+    # This app's room-naming convention makes the LiveKit room NAME just the
+    # bare problem slug (see the module docstring), which every session on
+    # that problem shares -- keying a checkpoint on the name alone would mean
+    # a different visitor (or the same student starting over) silently
+    # inherits whatever an earlier, unrelated session on the same problem
+    # left behind. The room's SID is unique to this specific room instance,
+    # so combining the two only ever matches a checkpoint back to the exact
+    # room it was saved from.
+    room_sid = await ctx.room.sid
+    session_key = f"{ctx.room.name}:{room_sid}"
+
+    resumed_state = load_checkpoint(session_key)
+    if resumed_state is not None and resumed_state.get("problem_slug") == problem_slug:
+        tutor_agent.state = resumed_state
+        delete_checkpoint(session_key)  # single-use: consumed on resume
+    else:
+        if resumed_state is not None:
+            # Defensive only -- session_key already pins the exact room
+            # instance, so a slug mismatch here shouldn't be reachable in
+            # practice. Still, don't leave an orphaned file behind if it
+            # somehow happens.
+            delete_checkpoint(session_key)
+        resumed_state = None
 
     session = AgentSession(
         vad=silero.VAD.load(),
@@ -449,17 +589,37 @@ async def entrypoint(ctx: JobContext) -> None:
         # instance is never invoked. See `Agent.default.llm_node` vs our
         # override in `voice/agent.py` / `voice/agent_activity.py`.
         llm=groq.LLM(),
+        # Default (15s of mutual silence) is a bit eager for a coding tutor --
+        # a student silently reading the problem or typing isn't "away".
+        # Give it a minute before even the first quiet check-in fires.
+        user_away_timeout=60.0,
+        # A frustrated/impatient student's short interjections ("wait",
+        # "no", "uh") were observed cutting the tutor off permanently
+        # mid-sentence in real testing (min_words=0 means even one word
+        # counts as a real interruption). Requiring a couple of words plus a
+        # slightly longer false-interruption window gives genuinely brief
+        # interjections a real chance to be treated as false and resumed,
+        # rather than every "wait" being a hard cutoff.
+        turn_handling={"interruption": {"min_words": 2, "false_interruption_timeout": 3.0}},
     )
 
     _wire_data_channel(ctx.room, tutor_agent, session)
+    _wire_idle_handling(ctx.room, tutor_agent, session, session_key)
 
     await session.start(tutor_agent, room=ctx.room)
 
-    # Fire the INTRO turn immediately on join, without waiting for the
-    # student to speak first -- `TutorAgent.llm_node` sees an empty user
-    # turn, phase is still "INTRO" (see initial_state), so it presents the
-    # problem statement and advances to COMPREHENSION_CHECK.
-    session.generate_reply()
+    if resumed_state is not None:
+        # Don't re-invoke the graph or replay INTRO -- state already rests
+        # wherever the student left off; just let them know we picked back
+        # up, then wait for their next turn same as any other resting phase.
+        problem = get_problem(problem_slug)
+        session.say(_WELCOME_BACK_NARRATION.format(title=problem.title))
+    else:
+        # Fire the INTRO turn immediately on join, without waiting for the
+        # student to speak first -- `TutorAgent.llm_node` sees an empty user
+        # turn, phase is still "INTRO" (see initial_state), so it presents
+        # the problem statement and advances to COMPREHENSION_CHECK.
+        session.generate_reply()
 
 
 if __name__ == "__main__":

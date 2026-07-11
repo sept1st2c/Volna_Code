@@ -22,18 +22,15 @@ export function FeatureRow() {
       <div className="grid gap-6 md:grid-cols-3">
         {features.map((feature, i) => (
           <Reveal key={feature.title} delay={i * 0.08} className="h-full">
-            <SpotlightCard className="group/card h-full rounded-xl border border-hairline-soft bg-white/[0.015] p-8">
-              <div className="flex items-baseline gap-3">
-                <span className="font-mono text-[13px] text-stone transition-colors duration-300 group-hover/card:text-primary">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span className="h-px flex-1 bg-hairline-soft transition-colors duration-300 group-hover/card:bg-primary/40" />
-                {i < features.length - 1 && (
-                  <span className="font-mono text-[10px] uppercase tracking-wide text-stone/70">
-                    next
-                  </span>
-                )}
-              </div>
+            {/* card-feature per DESIGN-mistral.ai.md: canvas background, rounded-lg
+                (12px, not the custom 16px xl token), 1px hairline-soft border --
+                a flat box defined only by its outline, no fill tint. */}
+            <SpotlightCard className="group/card h-full rounded-lg border border-hairline-soft bg-canvas p-8">
+              {/* PP Editorial Old (Fraunces here) is the doc's spec for "large
+                  numbers" -- swapped out for the old small mono numeral tag. */}
+              <span className="font-display text-[44px] leading-none text-stone/70 transition-colors duration-300 group-hover/card:text-primary">
+                {i + 1}
+              </span>
               <h3 className="mt-6 text-[22px] font-medium leading-[1.3] text-ink">
                 {feature.title}
               </h3>

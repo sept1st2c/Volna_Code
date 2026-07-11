@@ -73,7 +73,14 @@ def _after_brute_force(state: TutorState) -> str:
 
 
 def _after_optimal_approach(state: TutorState) -> str:
-    return "hint" if state["phase"] == "HINT_LADDER" else END
+    # skip_hint_this_turn distinguishes "resting at HINT_LADDER, not ready to
+    # advance" (chain into hint_node, matching the graph's normal guiding
+    # behavior) from "resting at HINT_LADDER because this turn wasn't a real
+    # attempt at all" (end the turn as-is; a hint here would bury the
+    # acknowledgment optimal_approach_node just gave). See state.py.
+    if state["phase"] == "HINT_LADDER" and not state.get("skip_hint_this_turn"):
+        return "hint"
+    return END
 
 
 def _after_execution_feedback(state: TutorState) -> str:

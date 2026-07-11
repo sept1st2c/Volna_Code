@@ -14,3 +14,4 @@ server/__pycache__/
 *.pyc
 .piston-data/
 .claude/
+server/.sessions/

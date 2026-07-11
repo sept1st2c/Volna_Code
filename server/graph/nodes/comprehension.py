@@ -26,6 +26,7 @@ _MOVING_ON_CAVEAT = (
 
 _FALLBACK = ComprehensionGrade(
     reasoning="Grading call failed after retry; defaulting to not-ready so the session never silently skips ahead.",
+    is_substantive_attempt=False,
     score=0,
     covered_points=[],
     gaps=[],
@@ -52,8 +53,37 @@ def comprehension_node(state: TutorState) -> dict:
         fallback=_FALLBACK,
     )
 
+    # Every call at COMPREHENSION_CHECK counts toward the exhaustion budget,
+    # substantive or not. Real testing caught why this matters: gating the
+    # counter on is_substantive_attempt lets LLM classification variance
+    # break the escape hatch's whole guarantee -- the exact same borderline
+    # input was classified is_substantive_attempt=True on 5 of 6 identical
+    # calls and False on one, leaving the counter one short of the cap and
+    # the student stuck in remediation past the supposed hard limit. The
+    # bound has to be on turns spent here, not on turns the grader happened
+    # to call "real".
     attempts = state.get("comprehension_attempts", 0) + 1
     exhausted = attempts >= _MAX_COMPREHENSION_ATTEMPTS
+
+    # A mic check, filler, or clarifying question still isn't a real attempt
+    # at explaining the problem -- still don't grade it as a failed
+    # explanation or send it into loophole remediation (which would
+    # otherwise cycle through an unrelated edge case with zero connection to
+    # what the student actually said). It just no longer stalls forward
+    # progress forever if the budget runs out.
+    if not result.is_substantive_attempt:
+        phase = "APPROACH_DISCUSSION" if exhausted else "COMPREHENSION_CHECK"
+        narration = result.feedback_to_user + (_MOVING_ON_CAVEAT if exhausted else "")
+        return {
+            "comprehension_result": result,
+            "comprehension_attempts": attempts,
+            "narration": narration,
+            "phase": phase,
+            # This turn's (possibly accumulated) input has now been graded --
+            # clear the flag so the NEXT turn's accumulation decision isn't
+            # still forced to reset by guidance that was already consumed.
+            "fresh_guidance_just_delivered": False,
+        }
 
     if result.ready_to_advance:
         phase = "APPROACH_DISCUSSION"
@@ -72,4 +102,5 @@ def comprehension_node(state: TutorState) -> dict:
         "comprehension_attempts": attempts,
         "narration": narration,
         "phase": phase,
+        "fresh_guidance_just_delivered": False,
     }

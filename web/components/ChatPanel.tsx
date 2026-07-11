@@ -1,12 +1,27 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@/lib/types";
 
 export interface ChatPanelProps {
   messages: ChatMessage[];
   /** Optional: lets the page show a "live" vs "example transcript" indicator. */
   isLive?: boolean;
+}
+
+/** Plain-text rendering of the transcript, e.g.:
+ *  [9:53:17 PM] Tutor: Let's work through Two Sum...
+ *  [9:53:24 PM] You: Hello, hello, am I audible?
+ * Meant for pasting elsewhere (bug reports, sharing a session) -- not shown
+ * on screen itself. */
+function formatTranscript(messages: ChatMessage[]): string {
+  return messages
+    .map((m) => {
+      const speaker = m.role === "user" ? "You" : "Tutor";
+      const prefix = m.timestamp ? `[${m.timestamp}] ` : "";
+      return `${prefix}${speaker}: ${m.text}`;
+    })
+    .join("\n");
 }
 
 /**
@@ -17,25 +32,53 @@ export interface ChatPanelProps {
  */
 export default function ChatPanel({ messages, isLive = false }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
+  // Reset the "Copied" confirmation after a moment rather than leaving it
+  // stuck once shown.
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1800);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(formatTranscript(messages));
+      setCopied(true);
+    } catch (err) {
+      console.error("[chat] failed to copy transcript", err);
+    }
+  };
+
   return (
     <section className="flex h-full flex-col overflow-hidden rounded-lg border border-hairline bg-surface">
       <header className="flex items-center justify-between border-b border-hairline px-4 py-3">
         <h2 className="text-sm font-semibold text-ink">Tutor conversation</h2>
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
-            isLive
-              ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
-              : "bg-surface-2 text-steel ring-hairline-strong"
-          }`}
-        >
-          <span className={`h-1.5 w-1.5 rounded-full ${isLive ? "bg-emerald-500" : "bg-stone"}`} />
-          {isLive ? "Live" : "Example transcript"}
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleCopy}
+            disabled={messages.length === 0}
+            className="rounded-md border border-hairline-strong px-2 py-1 text-xs font-medium text-ink-tint hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {copied ? "Copied" : "Copy"}
+          </button>
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
+              isLive
+                ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
+                : "bg-surface-2 text-steel ring-hairline-strong"
+            }`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${isLive ? "bg-emerald-500" : "bg-stone"}`} />
+            {isLive ? "Live" : "Example transcript"}
+          </span>
+        </div>
       </header>
 
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">

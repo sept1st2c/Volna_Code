@@ -105,11 +105,14 @@ def hint_node(state: TutorState) -> dict:
     hint_max_level_stuck_rounds = state.get("hint_max_level_stuck_rounds", 0)
     forced = state.get("force_hint_advance", False)
 
-    # The user's latest turn during HINT_LADDER continues the same live
-    # discussion transcript used during APPROACH_DISCUSSION -- reused here
-    # rather than a dedicated field since state.py defines no separate
-    # per-turn utterance field for this phase.
-    user_latest_input = state.get("approach_transcript", "")
+    # `latest_spoken_turn`, NOT `approach_transcript`: the latter now
+    # accumulates across turns for optimal_approach_node's benefit (grading
+    # a full, possibly multi-turn approach description), but this node's own
+    # stuck/not-stuck judgment is explicitly about "the latest turn alone"
+    # (see prompts/hints.py) -- feeding it the whole accumulated buffer was a
+    # real bug caught in review, silently breaking that contract the moment
+    # HINT_LADDER accumulation was added.
+    user_latest_input = state.get("latest_spoken_turn", "")
 
     if forced:
         stuck_streak = _STUCK_STREAK_THRESHOLD
@@ -161,4 +164,10 @@ def hint_node(state: TutorState) -> dict:
         "phase": "HINT_LADDER",
         "force_hint_advance": False,
         "force_hint_test_id": None,
+        # Every call here gives the student some form of new guidance (a
+        # hint, the direct reveal, or a personalized nudge) -- their next
+        # turn is a response to THAT, not a continuation of whatever they
+        # said before, even though the resting phase string doesn't change.
+        # See state.py's docstring on this field for the bug this prevents.
+        "fresh_guidance_just_delivered": True,
     }

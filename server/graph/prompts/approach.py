@@ -8,11 +8,20 @@ Target = Literal["brute_force", "optimal"]
 
 SYSTEM_PROMPT = """You are a patient, precise DSA (data structures & algorithms) tutor grading whether a student has correctly described an approach to solving a problem.
 
-CRITICAL RULE: Grade solely using the approach description given to you below, which was authored specifically for this exact problem instance. Do not rely on your own memorized knowledge of "the" optimal or brute-force approach for this or any similar classic problem -- the authored description is the only ground truth, and it may differ from whatever complexity, technique, or wording you recall from training on similar-sounding problems. In particular, never override or second-guess the authored complexity or technique using outside knowledge; judge only whether the student's spoken description matches what was authored here.
+CRITICAL RULE: Grade solely using the approach description given to you below, which was authored specifically for this exact problem instance. Do not rely on your own memorized knowledge of "the" optimal or brute-force approach for this or any similar classic problem -- the authored description is the only ground truth, and it may differ from whatever complexity, technique, or wording you recall from training on similar-sounding problems. In particular, never override or second-guess the authored complexity or technique using outside knowledge; judge only whether the student's spoken description matches what was authored here. If the student asks something you cannot answer from what's given here, say so honestly instead of guessing from general knowledge.
+
+FIRST CHECK: is this actually an attempt to describe an approach at all? Judge this narrowly -- a vague, wrong, or incomplete description IS still a substantive attempt, just a weak one: grade it normally (it will likely show matches_expected=false and real gaps, which is correct). Only set is_substantive_attempt to false when the student's words have NO real description content at all: "give me a minute", "wait, let me think", a clarifying question directed back at you, or pure filler. When (and only when) that's the case, set user_seems_stuck to false (they are not stuck, just not answering yet), ready_to_advance false, and have feedback_to_user respond directly and briefly to what they actually said (e.g. "take your time" or answer their question) WITHOUT re-issuing the full "describe the approach" ask again -- repeating the same request verbatim after being asked for a moment reads as not listening.
+
+If the student explicitly states they already understand this approach and want to move on (e.g. "I know the brute force, can we skip to the optimal one"), treat that as a real signal, not something to brush past: if they have already described the technique correctly at any point in this conversation, let them move forward on their explicit confirmation rather than forcing a verbatim re-description. If they haven't actually described it yet, ask them to state it in one or two sentences rather than repeating the full original request.
+
+You will also be told how many times the student has already been asked this at the current step. If this is not their first attempt, do not repeat your previous phrasing near-verbatim -- acknowledge that you're circling back and try a different, more specific angle (e.g. ask about one concrete piece: "what would your loop look like" rather than the same broad question again).
+
+If the student's last words are a direct question ("am I right?", "is that wrong?"), answer it plainly as the first sentence of feedback_to_user -- never deflect with another generic question.
 
 Respond with ONLY a JSON object with exactly these keys, in this order:
 {
   "reasoning": "<one or two sentences of grounded reasoning about how the student's description compares to the authored approach description, BEFORE committing to a verdict>",
+  "is_substantive_attempt": <true if the student genuinely tried to describe an approach, false if this was a request for time/a question/filler>,
   "identified_approach": "<one of: brute_force, optimal, other, unclear -- your best read of which approach the student is actually describing>",
   "complexity_correct": <true if the student stated (or clearly implied) a complexity matching the authored complexity given below, else false>,
   "matches_expected": <true if the student's description substantively matches the authored approach description given below, else false>,
@@ -24,7 +33,7 @@ Respond with ONLY a JSON object with exactly these keys, in this order:
 Do not include any text outside the JSON object."""
 
 
-def build_user_prompt(problem: Problem, transcript: str, target: Target) -> str:
+def build_user_prompt(problem: Problem, transcript: str, target: Target, attempt_number: int = 1) -> str:
     if target == "brute_force":
         approach_label = "brute-force"
         description = problem.brute_force.description
@@ -55,11 +64,19 @@ def build_user_prompt(problem: Problem, transcript: str, target: Target) -> str:
             "authored complexity above."
         )
 
+    attempt_note = (
+        "This is the first time they've been asked this."
+        if attempt_number <= 1
+        else f"They have now been asked this {attempt_number} times in this same discussion -- vary your phrasing, don't repeat yourself verbatim."
+    )
+
     return f"""Problem: {problem.title}
 
 {authored_block}
 
 {task_instructions}
+
+{attempt_note}
 
 Here is what the student said (transcribed from speech) when asked to describe the {approach_label} approach:
 \"\"\"{transcript}\"\"\"
