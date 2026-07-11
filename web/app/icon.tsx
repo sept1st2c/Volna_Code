@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
-
+//this shi sucks
 // Branded favicon: the ember gradient from globals.css's `.text-gradient-ember`,
 // applied to a bold "V" on the same off-black canvas as the rest of the site,
 // so the browser tab matches the wordmark in Nav.tsx/Footer.tsx instead of
