@@ -38,7 +38,11 @@ app = FastAPI(title="DSA Tutor API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    # Hardcoding just :3000 broke the moment another local project already
+    # held that port and Next.js fell back to :3002 -- this is a local-only
+    # dev backend, so matching any localhost port removes that fragility
+    # instead of chasing whichever port happens to be free today.
+    allow_origin_regex=r"http://localhost:\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
