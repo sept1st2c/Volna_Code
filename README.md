@@ -1,6 +1,6 @@
 # Volna
 
-**A voice AI tutor for coding interview problems that refuses to just hand you the answer.**
+**Solve DSA problems out loud, the way you'd work through maths in front of a tuition or classroom teacher.**
 
 You talk to it out loud. It makes you explain the problem back in your own words, defend a brute-force approach before it'll let you near the optimal one, gives hints only once you're actually stuck, and then runs your real code against real test cases in a sandbox instead of an LLM guessing whether it's right.
 
@@ -10,7 +10,7 @@ You talk to it out loud. It makes you explain the problem back in your own words
 
 ## Why this exists
 
-Most "AI tutor" demos are a chat box wrapped around an LLM that will cheerfully explain the optimal solution the moment you ask twice. Volna is an attempt at the opposite: a **deterministic tutoring flow** (built as an explicit state machine) where the LLM is only ever allowed to do two things — *judge* what you said against facts a human wrote ahead of time, and *narrate* that judgment out loud. It never invents a hint, an edge case, or a pass/fail result. Every fact the tutor states either came from an authored problem file or from actually running your code.
+Most "AI tutor" demos are a chat box wrapped around an LLM that will cheerfully explain the optimal solution the moment you ask twice. Volna is built to feel like the opposite: less a chatbot, more a classroom teacher standing over your shoulder while you work through a problem on the board. It's a **deterministic tutoring flow** (built as an explicit state machine) where the LLM is only ever allowed to do two things — *judge* what you said against facts a human wrote ahead of time, and *narrate* that judgment out loud. It never invents a hint, an edge case, or a pass/fail result. Every fact the teacher states either came from an authored problem file or from actually running your code.
 
 If you want the deep, from-first-principles version of everything below (written for someone with zero agentic/voice AI background), see **[`INTERVIEW-PREP.md`](INTERVIEW-PREP.md)**. The full original architecture write-up is in **[`PLAN.md`](PLAN.md)**.
 
