@@ -1,6 +1,6 @@
 # Volna
 
-**Solve DSA problems out loud, the way you'd work through maths in front of a tuition or classroom teacher.**
+**Solve DSA problems out loud, the way you'd work through maths in front of a tuition or classroom teacher!**
 
 You talk to it out loud. It makes you explain the problem back in your own words, defend a brute-force approach before it'll let you near the optimal one, gives hints only once you're actually stuck, and then runs your real code against real test cases in a sandbox instead of an LLM guessing whether it's right.
 
